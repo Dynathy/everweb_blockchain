@@ -1,0 +1,24 @@
+{
+    "whitelist": [
+        {
+            "name": "www.wikipedia.org",
+            "url": "https://www.wikipedia.org",
+            "status": "Accessible"
+        },
+        {
+            "name": "www.bbc.com/news",
+            "url": "https://www.bbc.com/news",
+            "status": "Accessible"
+        },
+        {
+            "name": "www.si.edu",
+            "url": "https://www.si.edu",
+            "status": "Accessible"
+        },
+        {
+            "name": "www.data.gov",
+            "url": "https://www.data.gov",
+            "status": "Accessible"
+        }
+    ]
+}
