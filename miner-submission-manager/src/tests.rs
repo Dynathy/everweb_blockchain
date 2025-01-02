@@ -30,6 +30,10 @@ mod tests {
                 Some((miner_id.clone(), bounded_url.clone()))
             );
 
+            // Check emitted events
+            let events = System::events();
+            println!("Events: {:?}", events);
+
             // Check events
             let events = System::events();
             assert!(events.iter().any(|record| matches!(
