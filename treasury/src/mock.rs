@@ -94,12 +94,7 @@ pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
         .build_storage()
         .unwrap();
 
-    // Add initial balances
-    pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(AccountId32::from([1; 32]), 1_000)],
-    }
-    .assimilate_storage(&mut storage)
-    .unwrap();
+    
     
     let mut ext = sp_io::TestExternalities::from(storage);
     ext.execute_with(|| System::set_block_number(1));

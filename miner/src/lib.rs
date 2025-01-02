@@ -105,8 +105,9 @@ pub mod pallet {
 
             T::Currency::reserve(&who, deposit)?;
             Miners::<T>::insert(&who, deposit);
-
+			log::info!("About to deposit event for miner registration");
             Self::deposit_event(Event::MinerRegistered { miner: who.clone(), deposit });
+			log::info!("Event deposited");
             Ok(())
         }
 

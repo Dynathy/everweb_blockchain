@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::{new_test_ext, RuntimeOrigin, MaxUrlLength, Miner};
+    use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, MaxUrlLength, System, Miner};
     use crate::mock::Test;
     use crate::Whitelist;
     use crate::Pallet as MinerPallet;
@@ -10,13 +10,39 @@ mod tests {
     use sp_core::H256;
     use sp_runtime::AccountId32;
 
+
+
     #[test]
     fn register_miner_works() {
         new_test_ext().execute_with(|| {
+
+            System::deposit_event(RuntimeEvent::Miner(crate::Event::MinerRegistered {
+                miner: AccountId32::new([1; 32]),
+                deposit: 100,
+            }));
+            
+            println!("System events: {:?}", System::events());
+
             let miner_id = AccountId32::new([1; 32]);
             let deposit = 100;
+
+            // Register the miner
             assert_ok!(Miner::register_miner(RuntimeOrigin::signed(miner_id.clone()), deposit));
-            assert_eq!(Miner::miners(&miner_id), Some(deposit));
+
+            // Check storage
+            let stored_deposit = Miner::miners(&miner_id);
+            println!("Stored Deposit: {:?}", stored_deposit);
+            assert_eq!(stored_deposit, Some(deposit));
+
+            // Check emitted events
+            let events = System::events();
+            println!("Events: {:?}", events);
+
+            //Assert that the correct event was emitted
+            assert!(events.iter().any(|record| matches!(
+               &record.event,
+               RuntimeEvent::Miner(crate::Event::MinerRegistered { miner, deposit: dep }) if *miner == miner_id && *dep == deposit
+            )));
         });
     }
 
@@ -30,6 +56,10 @@ mod tests {
                 Miner::submit_hash(RuntimeOrigin::signed(miner_id), url, hash),
                 Error::<Test>::NotWhitelisted
             );
+
+            // Check emitted events
+            let events = System::events();
+            println!("Events: {:?}", events);
         });
     }
 
@@ -45,6 +75,10 @@ mod tests {
 
             assert_ok!(Miner::submit_hash(RuntimeOrigin::signed(miner_id.clone()), url.clone().into(), hash));
             assert_eq!(Miner::submissions(hash), Some((miner_id, url)));
+
+            // Check emitted events
+            let events = System::events();
+            println!("Events: {:?}", events);
         });
     }
 
@@ -57,6 +91,10 @@ mod tests {
 
             let bounded_url: BoundedVec<u8, MaxUrlLength> = url.try_into().unwrap();
             assert!(Whitelist::<Test>::contains_key(&bounded_url));
+
+            // Check emitted events
+            let events = System::events();
+            println!("Events: {:?}", events);
         });
     }
 
@@ -73,6 +111,10 @@ mod tests {
             // Remove from Whitelist
             assert_ok!(MinerPallet::<Test>::remove_from_whitelist(RuntimeOrigin::root(), url));
             assert!(!Whitelist::<Test>::contains_key(&bounded_url));
+
+            // Check emitted events
+            let events = System::events();
+            println!("Events: {:?}", events);
         });
     }
 }

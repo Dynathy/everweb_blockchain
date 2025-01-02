@@ -1,6 +1,4 @@
 #[cfg(test)]
-
-
 mod tests {
     use super::*;
     use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, System, Treasury};
