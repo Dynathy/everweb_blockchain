@@ -10,7 +10,7 @@ use sp_runtime::{
     BuildStorage,
     AccountId32,
 };
-
+use sp_runtime::traits::AccountIdConversion;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -23,6 +23,7 @@ frame_support::construct_runtime!(
     {
         System: frame_system,
         Balances: pallet_balances,
+        Treasury: pallet_treasury, // Add this line
         ValidatorSubmissionManager: pallet_validator_submission_manager,
         TreasuryManager: pallet_treasury_manager, // Added this line
     }
@@ -40,10 +41,10 @@ parameter_types! {
     pub const TreasuryManagerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/trman");
     pub const DevPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/devid");
     pub const DefaultDevAccount: AccountId32 = AccountId32::new([0u8; 32]); // Example account
-    pub const FeeSplitTreasury: u8 = 70; // Treasury receives 70%
-    pub const MinerRewardPercentage: u8 = 50; // Miner gets 50%
-    pub const ValidatorRewardPercentage: u8 = 50; // Validators share 50%
-    pub const TotalReward: u128 = 1_000; // Total reward distributed
+    pub const FeeSplitTreasury: u8 = 90; // Treasury receives 70%
+    pub const MinerRewardPercentage: u8 = 90; // Miner gets 50%
+    pub const ValidatorRewardPercentage: u8 = 10; // Validators share 50%
+    pub const TotalReward: u128 = 1000; // Total reward distributed
 }
 
 // Frame System Config
@@ -96,8 +97,8 @@ impl pallet_balances::Config for Test {
 }
 
 impl pallet_treasury_manager::Config for Test {
-    type Currency = Balances;
     type RuntimeEvent = RuntimeEvent;
+    type TreasuryCurrency = Balances;
     type TreasuryPalletId = TreasuryPalletId;
     type DevPalletId = DevPalletId;
     type DefaultDevAccount = DefaultDevAccount;
@@ -105,6 +106,13 @@ impl pallet_treasury_manager::Config for Test {
     type MinerRewardPercentage = MinerRewardPercentage;
     type ValidatorRewardPercentage = ValidatorRewardPercentage;
     type TotalReward = TotalReward;
+    type RootOrigin = frame_system::EnsureRoot<AccountId32>; // Added RootOrigin type
+}
+
+impl pallet_treasury::Config for Test {
+    type Currency = Balances;
+    type RuntimeEvent = RuntimeEvent;
+    type PalletId = TreasuryPalletId;
 }
 
 impl pallet_validator_submission_manager::Config for Test {
@@ -123,11 +131,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .build_storage()
         .unwrap();
 
+    // Retrieve the treasury account
+    let treasury_account: AccountId32 = TreasuryPalletId::get().into_account_truncating();
+    let dev_account: AccountId32 = DevPalletId::get().into_account_truncating();
+
      // Assimilate pallet_balances into the storage
      pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (AccountId32::new([1; 32]), 1_000_000),
-            (AccountId32::new([2; 32]), 1_000_000),
+            (TreasuryPalletId::get().into_account_truncating(), 1_000_000),
+            (DevPalletId::get().into_account_truncating(), 100_000),
         ],
     }
     .assimilate_storage(&mut storage)
@@ -140,6 +152,16 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         crate::ProcessedSubmissions::<Test>::remove_all(None);
         crate::MinerForHash::<Test>::remove_all(None);
         System::set_block_number(1);
+        log::info!("Treasury account initialized: {:?}", treasury_account);
+        log::info!(
+            "Treasury balance: {:?}",
+            pallet_balances::Pallet::<Test>::free_balance(&treasury_account)
+        );
+        log::info!("Dev account initialized: {:?}", dev_account);
+        log::info!(
+            "Dev balance: {:?}",
+            pallet_balances::Pallet::<Test>::free_balance(&dev_account)
+        );
     });
     ext
 }

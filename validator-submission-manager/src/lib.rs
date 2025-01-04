@@ -97,7 +97,12 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn on_finalize(n: BlockNumberFor<T>) {
             for (hash, deadline) in ValidationDeadline::<T>::iter() {
-                log::info!("on_finalize called at block {}: checking hash {:?}", n, hash);
+                log::debug!(
+                    "on_finalize: Current Block: {:?}, Hash: {:?}, Deadline: {:?}",
+                    n,
+                    hash,
+                    deadline
+                );
 
                 // Skip submissions that have already been processed
                 if ProcessedSubmissions::<T>::contains_key(&hash) {
@@ -147,16 +152,24 @@ pub mod pallet {
         ) -> DispatchResult {
             let validator = ensure_signed(origin)?;
             
+            log::info!(
+                "submit_validation: Miner: {:?}, Validator: {:?}, Hash: {:?}, Valid: {:?}",
+                miner, validator, hash, is_valid
+            );
             ///Ensure that when a validation is submitted the miner is stored
             if MinerForHash::<T>::get(&hash).is_none() {
                 MinerForHash::<T>::insert(&hash, &miner);
+                log::info!("Miner for hash {:?} set to {:?}", hash, miner);
             }
 
             ValidatorSubmissions::<T>::try_mutate(&hash, |submissions| -> Result<(), DispatchError> {
+                log::info!("Validator submissions before mutation: {:?}", submissions);
                 if let Err(_) = submissions.try_push((validator.clone(), is_valid)) {
                     // Handle case where the BoundedVec is full
+                    log::info!("ValidatorSubmissions is full for hash {:?}", hash);
                     return Err(DispatchError::Other("ValidatorSubmissions is full"));
                 }
+                log::info!("Validator submissions after mutation: {:?}", submissions);
                 Ok(())
             })?;
 
@@ -167,9 +180,15 @@ pub mod pallet {
         
             let current_block = <frame_system::Pallet<T>>::block_number();
             if let Some(deadline) = ValidationDeadline::<T>::get(&hash) {
+                log::info!("Submission deadline for hash {:?}: {:?}", hash, deadline);
                 ensure!(current_block <= deadline, Error::<T>::ValidationExpired);
             } else {
                 ValidationDeadline::<T>::insert(&hash, current_block + T::ValidationTimeout::get());
+                log::info!(
+                    "Set new validation deadline for hash {:?}: {:?}",
+                    hash,
+                    current_block + T::ValidationTimeout::get()
+                );
             }
         
             // Fetch the updated submissions for further processing
@@ -189,11 +208,31 @@ pub mod pallet {
             hash: T::Hash,
             submissions: Vec<(T::AccountId, bool)>,
         ) {
-            log::info!("ValidatorSubmissions for hash {:?}: {:?}", hash, submissions);
-            log::info!("Processing submissions for hash: {:?}", hash);
+            log::info!(
+                "process_submissions: Miner: {:?}, Hash: {:?}, Submissions: {:?}",
+                miner,
+                hash,
+                submissions
+            );
             let valid_count = submissions.iter().filter(|(_, valid)| *valid).count();
             let total_count = submissions.len();
-            log::info!("Submissions length: {}", submissions.len());
+            log::info!(
+                "Valid count: {}, Total count: {}, Threshold: {}",
+                valid_count,
+                total_count,
+                (2.0 / 3.0) * total_count as f32
+            );
+
+            // Ensure a minimum of 3 validators
+            if total_count < 3 {
+                log::info!(
+                    "Insufficient validators for hash {:?}: Only {} validators present.",
+                    hash,
+                    total_count
+                );
+                return; // Do nothing and wait for more submissions
+            }
+
             // Calculate 2/3 threshold
             if valid_count as f32 >= (2.0 / 3.0) * total_count as f32 {
                 log::info!(
@@ -223,6 +262,14 @@ pub mod pallet {
 
             // Define total reward (this can be parameterized or dynamic)
             let total_reward = <T as pallet_treasury_manager::Config>::TotalReward::get();
+
+            log::info!(
+                "handle_valid_submission: Miner: {:?}, Hash: {:?}, Validators: {:?}, Total Reward: {:?}",
+                miner,
+                hash,
+                validators,
+                total_reward
+            );
 
              // Call TreasuryManager's reward distribution function
             let call_result = pallet_treasury_manager::Pallet::<T>::direct_reward_distribution(

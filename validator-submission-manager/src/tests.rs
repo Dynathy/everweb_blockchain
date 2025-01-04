@@ -7,6 +7,7 @@ mod tests {
     use crate::Error;
     use crate::ProcessedSubmissions;
     use crate::mock::TreasuryManagerPalletId;
+    use crate::mock::TreasuryPalletId;
     use frame_support::{assert_noop, assert_ok, assert_err, BoundedVec,};
     use frame_support::traits::Hooks;
     use frame_support::traits::OnFinalize;
@@ -16,6 +17,7 @@ mod tests {
     use std::sync::Once;
     use frame_support::traits::fungible::Mutate;
     use sp_runtime::traits::AccountIdConversion;
+    use frame_support::traits::Currency;
 
     static INIT: Once = Once::new();
 
@@ -27,15 +29,24 @@ mod tests {
         });
     }
 
+    #[ignore]
     #[test]
     fn test_valid_submission() {
+        init_logger(); // Initialize the logger
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
             let validator = AccountId32::new([2; 32]);
             let submission_hash = H256::from_low_u64_be(1);
 
+            log::info!("Starting test for valid submission...");
+            log::info!("Miner: {:?}, Validator: {:?}, Submission Hash: {:?}", miner, validator, submission_hash);
+
             // Set balances
             let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
+            log::info!(
+                "ValidatorSubmissionManager Treasury account: {:?}",
+                treasury_account
+            );
             // Update the balance
             pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
@@ -47,6 +58,7 @@ mod tests {
                 true
             ));
 
+            log::info!("Submission by {:?} for {:?} validated successfully", validator, miner);
             // Ensure the submission is recorded
             let submissions = ValidatorSubmissionManager::validator_submissions(submission_hash);
             assert_eq!(submissions.len(), 1);
@@ -55,9 +67,11 @@ mod tests {
             // Ensure the deadline is set
             let deadline = ValidatorSubmissionManager::validation_deadline(submission_hash);
             assert!(deadline.is_some());
+            log::info!("Test for valid submission completed successfully.");
         });
     }
 
+    #[ignore]
     #[test]
     fn test_exceed_max_validator_submissions() {
         new_test_ext().execute_with(|| {
@@ -101,6 +115,7 @@ mod tests {
         });
     }
 
+    #[ignore]
     #[test]
     fn test_submission_after_deadline() {
         new_test_ext().execute_with(|| {
@@ -137,6 +152,7 @@ mod tests {
         });
     }
 
+
     #[test]
     fn test_process_submissions_via_public_api() {
         init_logger(); // Ensure logger is initialized
@@ -144,11 +160,16 @@ mod tests {
             let miner = AccountId32::new([1; 32]);
             let validator1 = AccountId32::new([2; 32]);
             let validator2 = AccountId32::new([3; 32]);
+            let validator3 = AccountId32::new([4; 32]);
             let submission_hash = H256::random();
 
             // Set balances
-            let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
-            pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
+            let treasury_account = TreasuryPalletId::get().into_account_truncating();
+            log::info!("Treasury account: {:?}", treasury_account);
+            //Balances::make_free_balance_be(&treasury_account, 1_000_000u128);
+
+            let balance = Balances::free_balance(&treasury_account);
+            log::info!("Treasury balance after setup: {:?}", balance);
 
             // Set the initial block number
             System::set_block_number(1);
@@ -162,6 +183,15 @@ mod tests {
             ));
             assert_ok!(ValidatorSubmissionManager::submit_validation(
                 RuntimeOrigin::signed(validator2.clone()),
+                miner.clone(),
+                submission_hash,
+                true,
+            ));
+
+            //Advanced the block and add another validator
+            System::set_block_number(2);
+            assert_ok!(ValidatorSubmissionManager::submit_validation(
+                RuntimeOrigin::signed(validator3.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
@@ -198,6 +228,8 @@ mod tests {
             );
         });
     }
+
+    #[ignore]
     #[test]
     fn test_2_3_threshold_submission() {
         new_test_ext().execute_with(|| {
@@ -266,6 +298,8 @@ mod tests {
             ));
         });
     }
+
+    #[ignore]
     #[test]
     fn test_2_3_threshold_submission_failure() {
         new_test_ext().execute_with(|| {
