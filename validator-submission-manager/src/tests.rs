@@ -3,8 +3,10 @@ mod tests {
     use super::*;
     use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, System, ValidatorSubmissionManager,};
     use crate::mock::Test;
+    use crate::mock::Balances;
     use crate::Error;
     use crate::ProcessedSubmissions;
+    use crate::mock::TreasuryManagerPalletId;
     use frame_support::{assert_noop, assert_ok, assert_err, BoundedVec,};
     use frame_support::traits::Hooks;
     use frame_support::traits::OnFinalize;
@@ -12,6 +14,8 @@ mod tests {
     use sp_core::H256;
     use sp_runtime::AccountId32;
     use std::sync::Once;
+    use frame_support::traits::fungible::Mutate;
+    use sp_runtime::traits::AccountIdConversion;
 
     static INIT: Once = Once::new();
 
@@ -29,6 +33,11 @@ mod tests {
             let miner = AccountId32::new([1; 32]);
             let validator = AccountId32::new([2; 32]);
             let submission_hash = H256::from_low_u64_be(1);
+
+            // Set balances
+            let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
+            // Update the balance
+            pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
             // Validator submits a valid submission
             assert_ok!(ValidatorSubmissionManager::submit_validation(
@@ -54,6 +63,10 @@ mod tests {
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
             let submission_hash = H256::from_low_u64_be(1);
+
+            // Set balances
+            let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
+            pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
             // Submit the maximum number of submissions
             for i in 0..10 {
@@ -95,6 +108,10 @@ mod tests {
             let validator = AccountId32::new([2; 32]);
             let submission_hash = H256::from_low_u64_be(1);
 
+            // Set balances
+            let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
+            pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
+
             // Submit a validation
             assert_ok!(ValidatorSubmissionManager::submit_validation(
                 RuntimeOrigin::signed(validator.clone()),
@@ -128,6 +145,10 @@ mod tests {
             let validator1 = AccountId32::new([2; 32]);
             let validator2 = AccountId32::new([3; 32]);
             let submission_hash = H256::random();
+
+            // Set balances
+            let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
+            pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
             // Set the initial block number
             System::set_block_number(1);
@@ -187,6 +208,10 @@ mod tests {
             let validator4 = AccountId32::new([5; 32]);
             let validator5 = AccountId32::new([6; 32]);
             let submission_hash = H256::random();
+
+            // Set balances
+            let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
+            pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
             // Set initial block
             System::set_block_number(1);
@@ -251,6 +276,10 @@ mod tests {
             let validator4 = AccountId32::new([5; 32]);
             let validator5 = AccountId32::new([6; 32]);
             let submission_hash = H256::random();
+
+            // Set balances
+            let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
+            pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
             // Set initial block
             System::set_block_number(1);

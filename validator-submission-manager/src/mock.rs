@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate as pallet_validator_submission_manager;
+use pallet_treasury_manager::Config as TreasuryConfig;
 use frame_support::{parameter_types, traits::ConstU128, traits::ConstU64};
 use sp_core::H256;
 use sp_runtime::{
@@ -23,6 +24,7 @@ frame_support::construct_runtime!(
         System: frame_system,
         Balances: pallet_balances,
         ValidatorSubmissionManager: pallet_validator_submission_manager,
+        TreasuryManager: pallet_treasury_manager, // Added this line
     }
 );
 
@@ -34,6 +36,14 @@ parameter_types! {
     pub const SubmissionFee: u64 = 10;
     pub const ExistentialDeposit: u128 = 1;
     pub const ValidatorSubmissionManagerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/vlmgr");
+    pub const TreasuryPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/trsry");
+    pub const TreasuryManagerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/trman");
+    pub const DevPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/devid");
+    pub const DefaultDevAccount: AccountId32 = AccountId32::new([0u8; 32]); // Example account
+    pub const FeeSplitTreasury: u8 = 70; // Treasury receives 70%
+    pub const MinerRewardPercentage: u8 = 50; // Miner gets 50%
+    pub const ValidatorRewardPercentage: u8 = 50; // Validators share 50%
+    pub const TotalReward: u128 = 1_000; // Total reward distributed
 }
 
 // Frame System Config
@@ -85,12 +95,25 @@ impl pallet_balances::Config for Test {
     type MaxFreezes = frame_support::traits::ConstU32<1>;
 }
 
+impl pallet_treasury_manager::Config for Test {
+    type Currency = Balances;
+    type RuntimeEvent = RuntimeEvent;
+    type TreasuryPalletId = TreasuryPalletId;
+    type DevPalletId = DevPalletId;
+    type DefaultDevAccount = DefaultDevAccount;
+    type FeeSplitTreasury = FeeSplitTreasury;
+    type MinerRewardPercentage = MinerRewardPercentage;
+    type ValidatorRewardPercentage = ValidatorRewardPercentage;
+    type TotalReward = TotalReward;
+}
 
 impl pallet_validator_submission_manager::Config for Test {
+    type TreasuryManager = Test;
     type Currency = Balances;
     type RuntimeEvent = RuntimeEvent;
     type MaxValidatorSubmissions = MaxValidatorSubmissions;
     type ValidationTimeout = ConstU64<5>; // Timeout in blocks
+    type TotalReward = TotalReward;
     //type WeightInfo = ();
 }
 
@@ -103,8 +126,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
      // Assimilate pallet_balances into the storage
      pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (AccountId32::new([1; 32]), 1_000),
-            (AccountId32::new([2; 32]), 1_000),
+            (AccountId32::new([1; 32]), 1_000_000),
+            (AccountId32::new([2; 32]), 1_000_000),
         ],
     }
     .assimilate_storage(&mut storage)

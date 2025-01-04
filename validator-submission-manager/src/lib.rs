@@ -1,26 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet::*;
+pub use crate::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-
-    pub mod treasury_manager {
-        use sp_std::vec::Vec;
-        use frame_support::dispatch::DispatchResult;
-
-        pub fn distribute_rewards<T>(
-            _miner: T::AccountId,
-            _validator_submissions: Vec<(T::AccountId, bool)>,
-        ) -> DispatchResult
-        where
-            T: frame_system::Config,
-        {
-            // Stub: Add logging or events here as needed for testing.
-            Ok(())
-        }
-    }
-
 
     use codec::FullCodec;
     use frame_support::{
@@ -30,14 +13,20 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use sp_std::{fmt::Debug, vec::Vec};
+    use pallet_treasury_manager;
+    use pallet_treasury_manager::{Config as TreasuryConfig, Event as TreasuryEvent};
 
     type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_treasury_manager::Config {
+        // Add the treasury manager pallet dependency.
+        type TreasuryManager: TreasuryConfig;
         type Currency: Currency<Self::AccountId>;
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
+        // Add TotalReward
+        type TotalReward: Get<BalanceOf<Self>>;
         #[pallet::constant]
         type MaxValidatorSubmissions: Get<u32>;
 
@@ -229,13 +218,31 @@ pub mod pallet {
     
 
         fn handle_valid_submission(hash: T::Hash, miner: T::AccountId, submissions: Vec<(T::AccountId, bool)>) {
-            treasury_manager::distribute_rewards::<T>(miner.clone(), submissions.clone())
-                .expect("Stub logic");
+            // Extract validator accounts
+            let validators: Vec<T::AccountId> = submissions.into_iter().map(|(validator, _)| validator).collect();
+
+            // Define total reward (this can be parameterized or dynamic)
+            let total_reward = <T as pallet_treasury_manager::Config>::TotalReward::get();
+
+             // Call TreasuryManager's reward distribution function
+            let call_result = pallet_treasury_manager::Pallet::<T>::direct_reward_distribution(
+                frame_system::RawOrigin::Root.into(),
+                miner.clone(),
+                validators.clone(),
+                total_reward,
+            );
+            if let Err(e) = call_result {
+                log::error!("Failed to distribute rewards: {:?}", e);
+            } else {
+                log::info!("Rewards distributed successfully for hash: {:?}", hash);
+            }
+        
+            // Emit event
             Self::deposit_event(Event::SubmissionValidated {
                 miner,
                 hash,
                 valid: true,
-            });
+            });          
         }
 
         fn handle_invalid_submission(hash: T::Hash, miner: T::AccountId) {
