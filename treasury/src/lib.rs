@@ -10,8 +10,6 @@ use frame_support::{
 use frame_system::pallet_prelude::*;
 use sp_runtime::traits::AccountIdConversion;
 
-use log::debug;
-
 // Type alias for balance using the Currency trait
 type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -72,6 +70,14 @@ pub mod pallet {
         pub fn deposit_funds(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
+            let treasury_account = Self::account_id();
+            let treasury_balance_before = T::Currency::free_balance(&treasury_account);
+            log::info!(
+                "Before deposit: Treasury account = {:?}, Balance = {:?}",
+                treasury_account,
+                treasury_balance_before
+            );
+
             // Transfer funds to treasury
             T::Currency::transfer(
                 &who,
@@ -81,6 +87,13 @@ pub mod pallet {
             )?;
 
             TreasuryBalance::<T>::mutate(|balance| *balance += amount);
+
+            let treasury_balance_after = T::Currency::free_balance(&treasury_account);
+            log::info!(
+                "After deposit: Treasury account = {:?}, New Balance = {:?}",
+                treasury_account,
+                treasury_balance_after
+            );
 
             Self::deposit_event(Event::FundsDeposited { who, amount });
 
@@ -94,27 +107,73 @@ pub mod pallet {
             recipient: T::AccountId,
             amount: BalanceOf<T>,
         ) -> DispatchResult {
+            // Ensure the call is made with Root origin
             ensure_root(origin)?;
-
+        
+            // Synchronize TreasuryBalance storage with on-chain balance
+            TreasuryBalance::<T>::put(T::Currency::free_balance(&Self::account_id()));
+        
+            // Retrieve treasury account and balances
+            let treasury_account = Self::account_id();
+            let treasury_balance_before = T::Currency::free_balance(&treasury_account);
+            let recipient_balance_before = T::Currency::free_balance(&recipient);
+        
+            // Log balances before transfer
+            log::info!(
+                "Before transfer: Treasury account = {:?}, Balance = {:?}, Recipient = {:?}, Balance = {:?}",
+                treasury_account,
+                treasury_balance_before,
+                recipient,
+                recipient_balance_before
+            );
+        
+            // Ensure the treasury has enough funds
             ensure!(
-                TreasuryBalance::<T>::get() >= amount,
+                treasury_balance_before >= amount,
                 Error::<T>::InsufficientFunds
             );
-
-            // Transfer funds out of treasury
-            T::Currency::transfer(
-                &Self::account_id(),
+        
+            // Attempt the transfer
+            match T::Currency::transfer(
+                &treasury_account,
                 &recipient,
                 amount,
                 ExistenceRequirement::KeepAlive,
-            )?;
-
-            TreasuryBalance::<T>::mutate(|balance| *balance -= amount);
-
-            Self::deposit_event(Event::FundsTransferred { recipient, amount });
-
+            ) {
+                Ok(_) => {
+                    // Update TreasuryBalance storage
+                    TreasuryBalance::<T>::mutate(|balance| *balance -= amount);
+        
+                    // Log balances after transfer
+                    let treasury_balance_after = T::Currency::free_balance(&treasury_account);
+                    let recipient_balance_after = T::Currency::free_balance(&recipient);
+        
+                    log::info!(
+                        "After transfer: Treasury account = {:?}, New Balance = {:?}, Recipient = {:?}, New Balance = {:?}",
+                        treasury_account,
+                        treasury_balance_after,
+                        recipient,
+                        recipient_balance_after
+                    );
+        
+                    // Emit success event
+                    Self::deposit_event(Event::FundsTransferred { recipient, amount });
+                }
+                Err(err) => {
+                    // Log transfer failure
+                    log::error!(
+                        "Transfer failed: Treasury account = {:?}, Recipient = {:?}, Amount = {:?}, Error = {:?}",
+                        treasury_account,
+                        recipient,
+                        amount,
+                        err
+                    );
+                    return Err(err);
+                }
+            }
+        
             Ok(())
-        }
+        }        
 
         #[pallet::call_index(2)]
         #[pallet::weight(12_000)] // Static weight for distribute_rewards
@@ -129,11 +188,15 @@ pub mod pallet {
 
             let total_reward = miner_reward + validator_reward;
 
-            debug!(
-                "Attempting to distribute rewards: miner_reward = {:?}, validator_reward = {:?}, total_reward = {:?}",
-                miner_reward, validator_reward, total_reward
-            );
+            let treasury_account = Self::account_id();
+            let treasury_balance_before = T::Currency::free_balance(&treasury_account);
 
+            log::info!(
+                "Before rewards distribution: Treasury account = {:?}, Balance = {:?}, Total Reward = {:?}",
+                treasury_account,
+                treasury_balance_before,
+                total_reward
+            );
             ensure!(
                 TreasuryBalance::<T>::get() >= total_reward,
                 Error::<T>::InsufficientFunds
@@ -154,6 +217,15 @@ pub mod pallet {
             )?;
 
             TreasuryBalance::<T>::mutate(|balance| *balance -= total_reward);
+
+            let treasury_balance_after = T::Currency::free_balance(&treasury_account);
+            log::info!(
+                "After rewards distribution: Treasury account = {:?}, New Balance = {:?}, Miner = {:?}, Validator = {:?}",
+                treasury_account,
+                treasury_balance_after,
+                miner,
+                validator
+            );
 
             Self::deposit_event(Event::RewardsDistributed {
                 miner,
@@ -179,3 +251,4 @@ mod mock;
 
 #[cfg(test)]
 mod tests;
+

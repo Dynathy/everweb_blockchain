@@ -14,9 +14,12 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use sp_std::vec::Vec;
 	use sp_runtime::traits::AccountIdConversion;
-    use sp_runtime::traits::{CheckedMul, CheckedDiv, Zero};
+    use sp_runtime::traits::{CheckedMul, CheckedDiv, Zero, CheckedSub};
+    use pallet_treasury::Pallet as Treasury;
 
-    type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+    //type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+    type BalanceOf<T> = <<T as pallet_treasury::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
@@ -26,8 +29,10 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		type Currency: ReservableCurrency<Self::AccountId>;
+	pub trait Config: frame_system::Config + pallet_treasury::Config {
+        //type Currency: Currency<Self::AccountId>;
+        type RootOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+        type TreasuryCurrency: Currency<Self::AccountId>;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		#[pallet::constant]
     	type TreasuryPalletId: Get<PalletId>;
@@ -41,6 +46,8 @@ pub mod pallet {
         type ValidatorRewardPercentage: Get<u8>;
         #[pallet::constant]
         type DefaultDevAccount: Get<Self::AccountId>;
+        #[pallet::constant]
+        type TotalReward: Get<BalanceOf<Self>>;
 	}
 
 	/// Tracks the total fees collected by the Treasury Manager.
@@ -53,6 +60,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		FeesAllocated {
+            reward_amount: BalanceOf<T>,
             treasury_amount: BalanceOf<T>,
             developer_amount: BalanceOf<T>,
         },
@@ -71,12 +79,11 @@ pub mod pallet {
 		InvalidFeeSplit,
         InvalidRewardSplit,
         NoValidatorsAssigned, // New Error
+        FundsUnavailable,
     }
 
-	#[pallet::call]
+    #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Direct the Treasury to distribute rewards.
-        #[pallet::call_index(0)]
         #[pallet::weight(12_000)]
         pub fn direct_reward_distribution(
             origin: OriginFor<T>,
@@ -84,97 +91,134 @@ pub mod pallet {
             validators: Vec<T::AccountId>,
             total_reward: BalanceOf<T>,
         ) -> DispatchResult {
-            // Ensure the caller has root privileges.
             ensure_root(origin)?;
-
-            // **NEW**: Retrieve treasury and developer accounts.
-            let treasury_account = T::TreasuryPalletId::get().into_account_truncating();
-           // let dev_account = T::DevPalletId::get()
-           //     .try_into_account()
-           //     .unwrap_or_else(|| T::DefaultDevAccount::get());
-
-           let dev_account = T::DefaultDevAccount::get();
-
-            // Ensure Not Zero
-            ensure!(total_reward > Zero::zero(), Error::<T>::InvalidRewardSplit);
-            // **NEW**: Calculate and transfer the developer fee.
-            let dev_fee = total_reward 
-                * (BalanceOf::<T>::from(100u8) - BalanceOf::<T>::from(T::FeeSplitTreasury::get())) 
-                / BalanceOf::<T>::from(100u8);
-
+    
             log::info!(
-                "Developer Fee Transfer: From Treasury: {:?} to Developer: {:?} Amount: {:?}",
-                treasury_account,
-                dev_account,
-                dev_fee
+                "Starting direct_reward_distribution: Miner: {:?}, Validators: {:?}, Total Reward: {:?}",
+                miner,
+                validators,
+                total_reward
             );
-
-            T::Currency::transfer(
+    
+            // Ensure the reward is not zero
+            ensure!(total_reward > Zero::zero(), Error::<T>::InvalidRewardSplit);
+    
+            // Get treasury and developer accounts
+            let treasury_account = pallet_treasury::Pallet::<T>::account_id();
+            let dev_account = T::DevPalletId::get().into_account_truncating();
+    
+            // Calculate fees and remaining reward
+            let total_fee = Self::calculate_fee(total_reward)?;
+            let dev_fee = total_fee;
+            let remaining_reward = Self::calculate_remaining_reward(total_reward, total_fee)?;
+    
+            // Transfer developer fee
+            Self::transfer_developer_fee(&treasury_account, &dev_account, dev_fee)?;
+    
+            // Distribute miner and validator rewards
+            Self::distribute_rewards(
                 &treasury_account,
-                &dev_account,
-                dev_fee,
-                ExistenceRequirement::AllowDeath,
+                miner,
+                validators,
+                remaining_reward,
             )?;
-
-            // Adjust the total reward to exclude the developer fee.
-            let remaining_reward = total_reward - dev_fee;
-        
-            // Validate the reward split configuration.
-            ensure!(
-                T::MinerRewardPercentage::get() + T::ValidatorRewardPercentage::get() == 100,
-                Error::<T>::InvalidRewardSplit
+    
+            Ok(())
+        }
+    }
+    
+    
+    impl<T: Config> Pallet<T> {
+        fn calculate_fee(total_reward: BalanceOf<T>) -> Result<BalanceOf<T>, DispatchError> {
+            let fee_split = BalanceOf::<T>::from(100u8 - T::FeeSplitTreasury::get());
+            let total_fee = total_reward * fee_split / BalanceOf::<T>::from(100u8);
+            log::info!("Calculated Total Fee: {:?}", total_fee);
+            Ok(total_fee)
+        }
+    
+        fn calculate_remaining_reward(
+            total_reward: BalanceOf<T>,
+            total_fee: BalanceOf<T>,
+        ) -> Result<BalanceOf<T>, DispatchError> {
+            let remaining_reward = total_reward.checked_sub(&total_fee)
+                .ok_or(Error::<T>::InvalidRewardSplit)?;
+            log::info!("Calculated Remaining Reward: {:?}", remaining_reward);
+            Ok(remaining_reward)
+        }
+    }
+    impl<T: Config> Pallet<T> {
+        fn transfer_developer_fee(
+            treasury_account: &T::AccountId,
+            dev_account: &T::AccountId,
+            dev_fee: BalanceOf<T>,
+        ) -> DispatchResult {
+            pallet_treasury::Pallet::<T>::transfer_funds(
+                frame_system::RawOrigin::Root.into(), // Ensure Root origin
+                dev_account.clone(),
+                dev_fee,
+            )?;
+            log::info!(
+                "Transferred Developer Fee: {:?} from Treasury: {:?} to Developer: {:?}",
+                dev_fee,
+                treasury_account,
+                dev_account
             );
-        
-            // Ensure validators are assigned.
+            Ok(())
+        }
+    }
+    impl<T: Config> Pallet<T> {
+        fn distribute_rewards(
+            treasury_account: &T::AccountId,
+            miner: T::AccountId,
+            validators: Vec<T::AccountId>,
+            remaining_reward: BalanceOf<T>,
+        ) -> DispatchResult {
             ensure!(!validators.is_empty(), Error::<T>::NoValidatorsAssigned);
-        
-            // Calculate miner's reward.
+    
+            // Calculate miner's reward
             let miner_reward = remaining_reward
                 .checked_mul(&BalanceOf::<T>::from(T::MinerRewardPercentage::get()))
                 .and_then(|v| v.checked_div(&BalanceOf::<T>::from(100u32)))
                 .ok_or(Error::<T>::InvalidRewardSplit)?;
-        
-            // Calculate total validator rewards and split among validators.
-            let total_validator_reward = remaining_reward - miner_reward;
+    
+            // Calculate total validator reward
+            let total_validator_reward = remaining_reward.checked_sub(&miner_reward)
+                .ok_or(Error::<T>::InvalidRewardSplit)?;
+    
+            // Split validator reward equally
             let per_validator_reward = total_validator_reward / BalanceOf::<T>::from(validators.len() as u32);
-        
-            // **NEW**: Retrieve treasury account to transfer funds from.
-            let treasury_account = T::TreasuryPalletId::get().into_account_truncating();
-        
-            // Transfer miner reward directly using `Currency`.
-            T::Currency::transfer(
-                &treasury_account,
-                &miner,
+            let remainder = total_validator_reward % BalanceOf::<T>::from(validators.len() as u32);
+    
+            log::info!("Miner Reward: {:?}", miner_reward);
+            log::info!("Validator Reward: Per Validator: {:?}, Remainder: {:?}", per_validator_reward, remainder);
+    
+            // Transfer miner reward
+            pallet_treasury::Pallet::<T>::transfer_funds(
+                frame_system::RawOrigin::Root.into(), // Ensure Root origin
+                miner.clone(),
                 miner_reward,
-                ExistenceRequirement::AllowDeath,
             )?;
-        
-            // Transfer rewards to each validator directly using `Currency`.
-            for validator in &validators {
-                T::Currency::transfer(
-                    &treasury_account,
-                    validator,
+            log::info!("Transferred Miner Reward: {:?} to Miner: {:?}", miner_reward, miner);
+    
+            // Distribute validator rewards
+            for (i, validator) in validators.iter().enumerate() {
+                let reward = if i == 0 {
+                    per_validator_reward + remainder // Add remainder to the first validator
+                } else {
+                    per_validator_reward
+                };
+    
+                pallet_treasury::Pallet::<T>::transfer_funds(
+                    frame_system::RawOrigin::Root.into(), // Ensure Root origin
+                    validator.clone(),
                     per_validator_reward,
-                    ExistenceRequirement::AllowDeath,
                 )?;
+                log::info!("Transferred Validator Reward: {:?} to Validator: {:?}", reward, validator);
             }
-        
-            // Emit event to record the reward distribution.
-            Self::deposit_event(Event::RewardsDistributed {
-                miner,
-                validators: validators.clone(), // Clone for event emission
-                miner_reward,
-                validator_reward: per_validator_reward,
-            });
-
-            Self::deposit_event(Event::FeesAllocated {
-                treasury_amount: remaining_reward,
-                developer_amount: dev_fee,
-            });
-        
+    
             Ok(())
         }
-    }
+    }    
 }
 
 #[cfg(test)]

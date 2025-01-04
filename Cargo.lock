@@ -7036,6 +7036,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-miner-submission-manager"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking 37.0.0",
+ "frame-support 37.0.1",
+ "frame-system 37.1.0",
+ "log",
+ "pallet-balances 38.0.0",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-mmr"
 version = "38.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7584,6 +7602,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-treasury-manager"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking 37.0.0",
+ "frame-support 37.0.1",
+ "frame-system 37.1.0",
+ "log",
+ "pallet-balances 38.0.0",
+ "pallet-treasury 0.1.0",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-utility"
 version = "38.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7597,6 +7634,44 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-validator"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking 37.0.0",
+ "frame-support 37.0.1",
+ "frame-system 37.1.0",
+ "log",
+ "pallet-balances 38.0.0",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-validator-submission-manager"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking 37.0.0",
+ "frame-support 37.0.1",
+ "frame-system 37.1.0",
+ "log",
+ "pallet-balances 38.0.0",
+ "pallet-treasury 0.1.0",
+ "pallet-treasury-manager",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
