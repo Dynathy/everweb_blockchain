@@ -64,23 +64,28 @@ mod tests {
     }
 
     #[test]
-    fn submit_hash_works_for_whitelisted_url() {
-        new_test_ext().execute_with(|| {
-            let miner_id = AccountId32::new([1; 32]);
-            let url = BoundedVec::<u8, MaxUrlLength>::try_from(b"http://example.com".to_vec()).unwrap();
-            let hash = H256::random();
+fn submit_hash_works_for_whitelisted_url() {
+    new_test_ext().execute_with(|| {
+        let miner_id = AccountId32::new([1; 32]);
+        let url = BoundedVec::<u8, MaxUrlLength>::try_from(b"http://example.com".to_vec()).unwrap();
+        let hash = H256::random();
 
-            // Insert into Whitelist
-            Whitelist::<Test>::insert(&url, ());
+        // Insert into Whitelist
+        Whitelist::<Test>::insert(&url, ());
 
-            assert_ok!(Miner::submit_hash(RuntimeOrigin::signed(miner_id.clone()), url.clone().into(), hash));
-            assert_eq!(Miner::submissions(hash), Some((miner_id, url)));
+        // Submit hash
+        assert_ok!(Miner::submit_hash(RuntimeOrigin::signed(miner_id.clone()), url.clone().into(), hash));
 
-            // Check emitted events
-            let events = System::events();
-            println!("Events: {:?}", events);
-        });
-    }
+        // Verify the submission was forwarded
+        // Check emitted events for SubmissionForwarded
+        let events = System::events();
+        assert!(events.iter().any(|record| matches!(
+            &record.event,
+            RuntimeEvent::Miner(crate::Event::SubmissionForwarded { miner, url: u, hash: h }) 
+                if *miner == miner_id && *u == *url && *h == hash
+        )));
+    });
+}
 
     #[test]
     fn add_to_whitelist_works() {

@@ -22,6 +22,7 @@ frame_support::construct_runtime!(
     {
         System: frame_system,
         Balances: pallet_balances,
+        SubmissionManager: pallet_miner_submission_manager, // Ensure SubmissionManager is above Miner
         Miner: pallet_miner,
     }
 );
@@ -32,6 +33,7 @@ parameter_types! {
     pub const MaxUrlLength: u32 = 256;
     pub const SubmissionFee: u64 = 10;
     pub const MinerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/miner");
+    pub const ManagerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/mmngr");
 }
 
 // Frame System Config
@@ -91,6 +93,14 @@ impl pallet_miner::Config for Test {
     type PalletId = MinerPalletId;
     type MaxUrlLength = MaxUrlLength;
     //type WeightInfo = ();
+}
+
+impl pallet_miner_submission_manager::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type PalletId = ManagerPalletId;
+    type MaxUrlLength = MaxUrlLength;
+    type Currency = Balances;
+    type SubmissionFee = SubmissionFee;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

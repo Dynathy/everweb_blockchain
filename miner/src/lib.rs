@@ -14,6 +14,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use sp_std::vec::Vec;
 	use sp_runtime::traits::AccountIdConversion;
+	use pallet_miner_submission_manager::Pallet as SubmissionManager;
 
     type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -25,7 +26,7 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_miner_submission_manager::Config  {
 		type Currency: ReservableCurrency<Self::AccountId>;
 		type SubmissionFee: Get<BalanceOf<Self>>;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -46,26 +47,17 @@ pub mod pallet {
 	pub type Whitelist<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		BoundedVec<u8, T::MaxUrlLength>,
+		BoundedVec<u8, <T as self::Config>::MaxUrlLength>,
 		(),
 		OptionQuery
 	>;
-    /// Tracks submitted hashes and associated metadata.
-	#[pallet::storage]
-	#[pallet::getter(fn submissions)]
-	pub type Submissions<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		T::Hash,
-		(T::AccountId, BoundedVec<u8, T::MaxUrlLength>),
-		OptionQuery
-	>;
+
     /// Events emitted by the pallet.
     #[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		MinerRegistered { miner: T::AccountId, deposit: BalanceOf<T> },
-		SubmissionAccepted { miner: T::AccountId, url: Vec<u8>, hash: T::Hash },
+		SubmissionForwarded { miner: T::AccountId, url: Vec<u8>, hash: T::Hash },
 
 		//Embedded Whitelist
 		WhitelistUpdated { url: Vec<u8>, added: bool }, // Added for whitelist changes
@@ -88,7 +80,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Returns the account ID for the pallet
 		pub fn account_id() -> T::AccountId {
-			T::PalletId::get().into_account_truncating()
+			<T as self::Config>::PalletId::get().into_account_truncating()
 		}
 	}
 
@@ -103,7 +95,7 @@ pub mod pallet {
 
             ensure!(!Miners::<T>::contains_key(&who), Error::<T>::MinerAlreadyRegistered);
 
-            T::Currency::reserve(&who, deposit)?;
+            <T as self::Config>::Currency::reserve(&who, deposit)?;
             Miners::<T>::insert(&who, deposit);
 			log::info!("About to deposit event for miner registration");
             Self::deposit_event(Event::MinerRegistered { miner: who.clone(), deposit });
@@ -112,24 +104,25 @@ pub mod pallet {
         }
 
         /// Submit a hash for validation.
-        #[pallet::call_index(1)]
-        #[pallet::weight(10_000)]
-        pub fn submit_hash(origin: OriginFor<T>, url: Vec<u8>, hash: T::Hash) -> DispatchResult {
-			let miner = ensure_signed(origin)?;
+		#[pallet::call_index(1)]
+		#[pallet::weight(10_000)]
+		pub fn submit_hash(origin: OriginFor<T>, url: Vec<u8>, hash: T::Hash) -> DispatchResult {
+            let miner = ensure_signed(origin)?;
 
-			// Convert `url` to `BoundedVec`
-			let bounded_url: BoundedVec<u8, T::MaxUrlLength> =
-				url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
-	
-			// Ensure the URL is whitelisted
-			ensure!(Whitelist::<T>::contains_key(&bounded_url), Error::<T>::NotWhitelisted);
-	
-			// Insert the submission
-			Submissions::<T>::insert(hash, (&miner, bounded_url));
-	
-			Self::deposit_event(Event::SubmissionAccepted { miner, url, hash });
-	
-			Ok(())
+            let bounded_url: BoundedVec<u8, <T as self::Config>::MaxUrlLength> =
+                url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
+
+            ensure!(Whitelist::<T>::contains_key(&bounded_url), Error::<T>::NotWhitelisted);
+
+            // Call the manager's submit_hash function
+			<pallet_miner_submission_manager::Pallet<T>>::submit_hash(
+				frame_system::RawOrigin::Signed(miner.clone()).into(), // Pass the origin
+				url.clone(),
+				hash,
+			)?;
+
+            Self::deposit_event(Event::SubmissionForwarded { miner, url, hash });
+            Ok(())
         }
 
 		///Embedded Whitelist placeholders
@@ -140,7 +133,7 @@ pub mod pallet {
 			 ensure_root(origin)?; // Only root can modify the whitelist
 	 
 			 // Convert URL to a bounded vector
-			 let bounded_url: BoundedVec<u8, T::MaxUrlLength> =
+			 let bounded_url: BoundedVec<u8, <T as self::Config>::MaxUrlLength> =
 				 url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
 	 
 			 // Ensure the URL is not already whitelisted
@@ -159,7 +152,7 @@ pub mod pallet {
 			 ensure_root(origin)?; // Only root can modify the whitelist
 	 
 			 // Convert URL to a bounded vector
-			 let bounded_url: BoundedVec<u8, T::MaxUrlLength> =
+			 let bounded_url: BoundedVec<u8, <T as self::Config>::MaxUrlLength> =
 				 url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
 	 
 			 // Ensure the URL is already whitelisted
