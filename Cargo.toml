@@ -16,6 +16,7 @@ members = [
     "validator", 
     "validator-submission-manager", 
     "treasury-manager",
+    "whitelist",
     ]
 resolver = "2"
 

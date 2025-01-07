@@ -29,7 +29,6 @@ mod tests {
         });
     }
 
-    #[ignore]
     #[test]
     fn test_valid_submission() {
         init_logger(); // Initialize the logger
@@ -71,7 +70,6 @@ mod tests {
         });
     }
 
-    #[ignore]
     #[test]
     fn test_exceed_max_validator_submissions() {
         new_test_ext().execute_with(|| {
@@ -115,7 +113,6 @@ mod tests {
         });
     }
 
-    #[ignore]
     #[test]
     fn test_submission_after_deadline() {
         new_test_ext().execute_with(|| {
@@ -229,7 +226,6 @@ mod tests {
         });
     }
 
-    #[ignore]
     #[test]
     fn test_2_3_threshold_submission() {
         new_test_ext().execute_with(|| {
@@ -299,7 +295,6 @@ mod tests {
         });
     }
 
-    #[ignore]
     #[test]
     fn test_2_3_threshold_submission_failure() {
         new_test_ext().execute_with(|| {

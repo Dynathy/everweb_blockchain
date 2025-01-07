@@ -64,62 +64,26 @@ mod tests {
     }
 
     #[test]
-fn submit_hash_works_for_whitelisted_url() {
-    new_test_ext().execute_with(|| {
-        let miner_id = AccountId32::new([1; 32]);
-        let url = BoundedVec::<u8, MaxUrlLength>::try_from(b"http://example.com".to_vec()).unwrap();
-        let hash = H256::random();
-
-        // Insert into Whitelist
-        Whitelist::<Test>::insert(&url, ());
-
-        // Submit hash
-        assert_ok!(Miner::submit_hash(RuntimeOrigin::signed(miner_id.clone()), url.clone().into(), hash));
-
-        // Verify the submission was forwarded
-        // Check emitted events for SubmissionForwarded
-        let events = System::events();
-        assert!(events.iter().any(|record| matches!(
-            &record.event,
-            RuntimeEvent::Miner(crate::Event::SubmissionForwarded { miner, url: u, hash: h }) 
-                if *miner == miner_id && *u == *url && *h == hash
-        )));
-    });
-}
-
-    #[test]
-    fn add_to_whitelist_works() {
+    fn submit_hash_works_for_whitelisted_url() {
         new_test_ext().execute_with(|| {
-            let url = b"http://example.com".to_vec();
-
-            assert_ok!(MinerPallet::<Test>::add_to_whitelist(RuntimeOrigin::root(), url.clone()));
-
-            let bounded_url: BoundedVec<u8, MaxUrlLength> = url.try_into().unwrap();
-            assert!(Whitelist::<Test>::contains_key(&bounded_url));
-
-            // Check emitted events
-            let events = System::events();
-            println!("Events: {:?}", events);
-        });
-    }
-
-    #[test]
-    fn remove_from_whitelist_works() {
-        new_test_ext().execute_with(|| {
-            let url = b"http://example.com".to_vec();
-            let bounded_url: BoundedVec<u8, MaxUrlLength> = url.clone().try_into().unwrap();
+            let miner_id = AccountId32::new([1; 32]);
+            let url = BoundedVec::<u8, MaxUrlLength>::try_from(b"http://example.com".to_vec()).unwrap();
+            let hash = H256::random();
 
             // Insert into Whitelist
-            Whitelist::<Test>::insert(&bounded_url, ());
-            assert!(Whitelist::<Test>::contains_key(&bounded_url));
+            Whitelist::<Test>::insert(&url, ());
 
-            // Remove from Whitelist
-            assert_ok!(MinerPallet::<Test>::remove_from_whitelist(RuntimeOrigin::root(), url));
-            assert!(!Whitelist::<Test>::contains_key(&bounded_url));
+            // Submit hash
+            assert_ok!(Miner::submit_hash(RuntimeOrigin::signed(miner_id.clone()), url.clone().into(), hash));
 
-            // Check emitted events
+            // Verify the submission was forwarded
+            // Check emitted events for SubmissionForwarded
             let events = System::events();
-            println!("Events: {:?}", events);
+            assert!(events.iter().any(|record| matches!(
+                &record.event,
+                RuntimeEvent::Miner(crate::Event::SubmissionForwarded { miner, url: u, hash: h }) 
+                    if *miner == miner_id && *u == *url && *h == hash
+            )));
         });
     }
 }

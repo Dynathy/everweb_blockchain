@@ -7027,6 +7027,7 @@ dependencies = [
  "frame-system 37.1.0",
  "log",
  "pallet-balances 38.0.0",
+ "pallet-miner-submission-manager",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
@@ -7687,6 +7688,25 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-whitelist"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking 37.0.0",
+ "frame-support 37.0.1",
+ "frame-system 37.1.0",
+ "log",
+ "pallet-balances 38.0.0",
+ "pallet-miner-submission-manager",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -10307,7 +10327,7 @@ dependencies = [
  "pallet-treasury 37.0.0",
  "pallet-utility",
  "pallet-vesting",
- "pallet-whitelist",
+ "pallet-whitelist 37.0.0",
  "pallet-xcm",
  "pallet-xcm-benchmarks",
  "parity-scale-codec",
@@ -15130,7 +15150,7 @@ dependencies = [
  "pallet-treasury 37.0.0",
  "pallet-utility",
  "pallet-vesting",
- "pallet-whitelist",
+ "pallet-whitelist 37.0.0",
  "pallet-xcm",
  "pallet-xcm-benchmarks",
  "parity-scale-codec",
