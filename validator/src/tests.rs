@@ -3,7 +3,6 @@ mod tests {
     use super::*;
     use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, MaxUrlLength, System, Validator};
     use crate::mock::Test;
-    use crate::Whitelist;
     use crate::AssignedSubmissions;
     use crate::Validators;
     use crate::Pallet as ValidatorPallet;
@@ -135,73 +134,6 @@ mod tests {
             assert_noop!(
                 Validator::register_validator(RuntimeOrigin::signed(validator_id.clone()), deposit),
                 Error::<Test>::ValidatorAlreadyRegistered
-            );
-        });
-    }
-
-    #[test]
-    fn add_to_whitelist_works() {
-        new_test_ext().execute_with(|| {
-            let url = b"http://example.com".to_vec();
-
-            assert_ok!(ValidatorPallet::<Test>::add_to_whitelist(RuntimeOrigin::root(), url.clone()));
-
-            let bounded_url: BoundedVec<u8, MaxUrlLength> = url.try_into().unwrap();
-            assert!(Whitelist::<Test>::contains_key(&bounded_url));
-
-            // Check emitted events
-            let events = System::events();
-            println!("Events: {:?}", events);
-        });
-    }
-
-    #[test]
-    fn add_to_whitelist_fails_if_already_whitelisted() {
-        new_test_ext().execute_with(|| {
-            let url = b"http://example.com".to_vec();
-            let bounded_url: BoundedVec<u8, MaxUrlLength> = url.clone().try_into().unwrap();
-
-            // Add to whitelist
-            Whitelist::<Test>::insert(&bounded_url, ());
-            assert!(Whitelist::<Test>::contains_key(&bounded_url));
-
-            // Attempt to add the same URL again
-            assert_noop!(
-                ValidatorPallet::<Test>::add_to_whitelist(RuntimeOrigin::root(), url),
-                Error::<Test>::UrlAlreadyWhitelisted
-            );
-        });
-    }
-
-    #[test]
-    fn remove_from_whitelist_works() {
-        new_test_ext().execute_with(|| {
-            let url = b"http://example.com".to_vec();
-            let bounded_url: BoundedVec<u8, MaxUrlLength> = url.clone().try_into().unwrap();
-
-            // Insert into Whitelist
-            Whitelist::<Test>::insert(&bounded_url, ());
-            assert!(Whitelist::<Test>::contains_key(&bounded_url));
-
-            // Remove from Whitelist
-            assert_ok!(ValidatorPallet::<Test>::remove_from_whitelist(RuntimeOrigin::root(), url));
-            assert!(!Whitelist::<Test>::contains_key(&bounded_url));
-
-            // Check emitted events
-            let events = System::events();
-            println!("Events: {:?}", events);
-        });
-    }
-
-    #[test]
-    fn remove_from_whitelist_fails_if_not_whitelisted() {
-        new_test_ext().execute_with(|| {
-            let url = b"http://example.com".to_vec();
-
-            // Attempt to remove a URL that is not in the whitelist
-            assert_noop!(
-                ValidatorPallet::<Test>::remove_from_whitelist(RuntimeOrigin::root(), url),
-                Error::<Test>::UrlNotWhitelisted
             );
         });
     }
