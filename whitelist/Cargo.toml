@@ -25,7 +25,6 @@ sp-io = { version = "38.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
 sp-core = { version = "34.0.0", default-features = false }
 pallet-balances = { version = "38.0.0", default-features = false }
-pallet-miner-submission-manager = { version = "0.1.0", path = "../miner-submission-manager"}
 log = { version = "0.4.21", default-features = false }
 
 [dev-dependencies]

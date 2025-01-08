@@ -14,6 +14,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use sp_std::vec::Vec;
 	use sp_runtime::traits::AccountIdConversion;
+    use pallet_whitelist;
 
     type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -25,7 +26,7 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_whitelist::Config {
 		type Currency: ReservableCurrency<Self::AccountId>;
 		type SubmissionFee: Get<BalanceOf<Self>>;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -42,19 +43,8 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::Hash,
-		(T::AccountId, BoundedVec<u8, T::MaxUrlLength>),
+		(T::AccountId, BoundedVec<u8, <T as Config>::MaxUrlLength>),
 		OptionQuery,
-	>;
-
-    /// Whitelist for valid URLs.
-    #[pallet::storage]
-	#[pallet::getter(fn whitelist)]
-	pub type Whitelist<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		BoundedVec<u8, T::MaxUrlLength>,
-		(),
-		OptionQuery
 	>;
 
     /// Events emitted by the pallet.
@@ -63,10 +53,6 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		///New Submission Added.
 		SubmissionReceived { miner: T::AccountId, hash: T::Hash, url: Vec<u8>},
-		///URL added to whitelist.
-		UrlWhitelisted { url: Vec<u8> },
-		///URL remove from whitelist.
-		UrlRemovedFromWhitelist { url: Vec<u8> },
 	}
 
     /// Errors that can occur in the pallet.
@@ -84,7 +70,6 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Miner submits a hash for validation.
-        #[pallet::call_index(0)]
         #[pallet::weight(10_000)]
         pub fn submit_hash(
             origin: OriginFor<T>,
@@ -93,12 +78,18 @@ pub mod pallet {
         ) -> DispatchResult {
             let miner = ensure_signed(origin)?;
 
+            log::info!("Start Submission manager submit hash");
+
             // Convert `url` to `BoundedVec`
-            let bounded_url: BoundedVec<u8, T::MaxUrlLength> =
+            let bounded_url: BoundedVec<u8, <T as Config>::MaxUrlLength> =
                 url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
 
-            // Ensure the URL is whitelisted
-            ensure!(Whitelist::<T>::contains_key(&bounded_url), Error::<T>::NotWhitelisted);
+            log::info!("Pass url to external whitelist");
+            // Ensure the URL is whitelisted using the external WhitelistPallet
+            ensure!(
+                pallet_whitelist::Pallet::<T>::is_whitelisted(url.clone())?,
+                Error::<T>::NotWhitelisted
+            );
 
             // Ensure submission is unique
             ensure!(

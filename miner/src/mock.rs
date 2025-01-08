@@ -22,6 +22,7 @@ frame_support::construct_runtime!(
     {
         System: frame_system,
         Balances: pallet_balances,
+        Whitelist: pallet_whitelist, // Add the Whitelist pallet
         SubmissionManager: pallet_miner_submission_manager, // Ensure SubmissionManager is above Miner
         Miner: pallet_miner,
     }
@@ -101,6 +102,12 @@ impl pallet_miner_submission_manager::Config for Test {
     type MaxUrlLength = MaxUrlLength;
     type Currency = Balances;
     type SubmissionFee = SubmissionFee;
+}
+
+impl pallet_whitelist::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type WhitelistOrigin = frame_system::EnsureRoot<AccountId32>;
+    type MaxUrlLength = MaxUrlLength;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

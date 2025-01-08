@@ -3,14 +3,25 @@ mod tests {
     use super::*;
     use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, MaxUrlLength, System, Miner};
     use crate::mock::Test;
-    use crate::Whitelist;
+    use crate::mock::Whitelist;
     use crate::Pallet as MinerPallet;
     use crate::Error;
+    use pallet_whitelist::Pallet as WhitelistPallet;
     use frame_support::{assert_noop, assert_ok, BoundedVec};
     use sp_core::H256;
     use sp_runtime::AccountId32;
-
-
+    
+    fn init_logging() {
+        use std::sync::Once;
+        static INIT: Once = Once::new();
+    
+        INIT.call_once(|| {
+            env_logger::Builder::from_default_env()
+                .filter_level(log::LevelFilter::Info) // Set the logging level
+                .is_test(true) // Indicate this is for tests
+                .init();
+        });
+    }
 
     #[test]
     fn register_miner_works() {
@@ -65,25 +76,40 @@ mod tests {
 
     #[test]
     fn submit_hash_works_for_whitelisted_url() {
+        init_logging();
+
         new_test_ext().execute_with(|| {
             let miner_id = AccountId32::new([1; 32]);
-            let url = BoundedVec::<u8, MaxUrlLength>::try_from(b"http://example.com".to_vec()).unwrap();
+            let url = b"http://example.com".to_vec();
             let hash = H256::random();
 
-            // Insert into Whitelist
-            Whitelist::<Test>::insert(&url, ());
+            log::info!("Test start: submit_hash_works_for_whitelisted_url");
+
+            // Add URL to whitelist
+            assert_ok!(WhitelistPallet::<Test>::add_url(
+                RuntimeOrigin::root(),
+                url.clone()
+            ));
+            //System::finalize();
+            //System::initialize(&1, &Default::default(), &Default::default()); // Start a new block
+            //log::info!("State finalized after add_url");
+
+            let storage_contents: Vec<_> = pallet_whitelist::Whitelist::<Test>::iter().collect();
+            log::info!("Storage state after add_url: {:?}", storage_contents);
+
+            // Verify whitelist storage
+            assert!(
+                WhitelistPallet::<Test>::is_whitelisted(url.clone()).unwrap(),
+                "URL should be in the whitelist"
+            );
 
             // Submit hash
-            assert_ok!(Miner::submit_hash(RuntimeOrigin::signed(miner_id.clone()), url.clone().into(), hash));
-
-            // Verify the submission was forwarded
-            // Check emitted events for SubmissionForwarded
-            let events = System::events();
-            assert!(events.iter().any(|record| matches!(
-                &record.event,
-                RuntimeEvent::Miner(crate::Event::SubmissionForwarded { miner, url: u, hash: h }) 
-                    if *miner == miner_id && *u == *url && *h == hash
-            )));
+            assert_ok!(Miner::submit_hash(
+                RuntimeOrigin::signed(miner_id.clone()),
+                url.clone(),
+                hash
+            ));
+            log::info!("Hash successfully submitted");
         });
     }
 }

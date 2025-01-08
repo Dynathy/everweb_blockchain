@@ -12,6 +12,34 @@ mod tests {
     use sp_runtime::traits::ConstU32;
     use sp_runtime::DispatchError;
 
+
+    #[test]
+    fn test_is_whitelisted() {
+        new_test_ext().execute_with(|| {
+            let valid_url = b"http://example.com".to_vec();
+            let long_url = vec![b'a'; 300]; // Exceeds MaxUrlLength
+            let invalid_url = b"http://not-in-whitelist.com".to_vec();
+
+            // Add a valid URL to the whitelist
+            assert_ok!(WhitelistPallet::<Test>::add_url(
+                RuntimeOrigin::root(),
+                valid_url.clone()
+            ));
+
+            // Test: The valid URL is whitelisted
+            let result = WhitelistPallet::<Test>::is_whitelisted(valid_url.clone());
+            assert!(result.is_ok() && result.unwrap(), "Expected URL to be whitelisted");
+
+            // Test: An unwhitelisted URL is not whitelisted
+            let result = WhitelistPallet::<Test>::is_whitelisted(invalid_url.clone());
+            assert!(result.is_ok() && !result.unwrap(), "Expected URL to not be whitelisted");
+
+            // Test: A URL that exceeds the max length should return an error
+            let result = WhitelistPallet::<Test>::is_whitelisted(long_url.clone());
+            assert!(matches!(result, Err(Error::<Test>::UrlTooLong)), "Expected UrlTooLong error");
+        });
+    }
+
     #[test]
     fn add_url_to_whitelist_works() {
         new_test_ext().execute_with(|| {

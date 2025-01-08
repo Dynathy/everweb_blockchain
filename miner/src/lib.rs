@@ -15,6 +15,8 @@ pub mod pallet {
     use sp_std::vec::Vec;
 	use sp_runtime::traits::AccountIdConversion;
 	use pallet_miner_submission_manager::Pallet as SubmissionManager;
+	use pallet_whitelist::Pallet as Whitelist;
+    
 
     type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -26,7 +28,7 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_miner_submission_manager::Config  {
+	pub trait Config: frame_system::Config + pallet_miner_submission_manager::Config + pallet_whitelist::Config  {
 		type Currency: ReservableCurrency<Self::AccountId>;
 		type SubmissionFee: Get<BalanceOf<Self>>;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -41,26 +43,12 @@ pub mod pallet {
     #[pallet::getter(fn miners)]
     pub type Miners<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, OptionQuery>;
 
-    /// Whitelist for valid URLs.
-    #[pallet::storage]
-	#[pallet::getter(fn whitelist)]
-	pub type Whitelist<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		BoundedVec<u8, <T as self::Config>::MaxUrlLength>,
-		(),
-		OptionQuery
-	>;
-
     /// Events emitted by the pallet.
     #[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		MinerRegistered { miner: T::AccountId, deposit: BalanceOf<T> },
 		SubmissionForwarded { miner: T::AccountId, url: Vec<u8>, hash: T::Hash },
-
-		//Embedded Whitelist
-		WhitelistUpdated { url: Vec<u8>, added: bool }, // Added for whitelist changes
 	}
 
     /// Errors that can occur in the pallet.
@@ -71,10 +59,6 @@ pub mod pallet {
         NotWhitelisted,
         InsufficientFunds,
 		UrlTooLong, // Too Long error
-
-		//Embedded Whitelist 
-		UrlAlreadyWhitelisted, // New error
-    	UrlNotWhitelisted, // New error for removal
     }
 
 	impl<T: Config> Pallet<T> {
@@ -104,65 +88,26 @@ pub mod pallet {
         }
 
         /// Submit a hash for validation.
-		#[pallet::call_index(1)]
-		#[pallet::weight(10_000)]
+        #[pallet::call_index(1)]
+        #[pallet::weight(10_000)]
 		pub fn submit_hash(origin: OriginFor<T>, url: Vec<u8>, hash: T::Hash) -> DispatchResult {
             let miner = ensure_signed(origin)?;
 
-            let bounded_url: BoundedVec<u8, <T as self::Config>::MaxUrlLength> =
-                url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
-
-            ensure!(Whitelist::<T>::contains_key(&bounded_url), Error::<T>::NotWhitelisted);
-
-            // Call the manager's submit_hash function
-			<pallet_miner_submission_manager::Pallet<T>>::submit_hash(
-				frame_system::RawOrigin::Signed(miner.clone()).into(), // Pass the origin
-				url.clone(),
-				hash,
-			)?;
-
+            let is_whitelisted = Whitelist::<T>::is_whitelisted(url.clone())?;
+            
+            ensure!(is_whitelisted, Error::<T>::NotWhitelisted);
+        
+            log::info!("URL is whitelisted, proceeding with submission");
+        
+            SubmissionManager::<T>::submit_hash(
+                frame_system::RawOrigin::Signed(miner.clone()).into(),
+                url.clone(),
+                hash,
+            )?;
+        
             Self::deposit_event(Event::SubmissionForwarded { miner, url, hash });
             Ok(())
-        }
-
-		///Embedded Whitelist placeholders
-		 /// Add a URL to the whitelist.
-		 #[pallet::call_index(2)]
-		 #[pallet::weight(10_000)]
-		 pub fn add_to_whitelist(origin: OriginFor<T>, url: Vec<u8>) -> DispatchResult {
-			 ensure_root(origin)?; // Only root can modify the whitelist
-	 
-			 // Convert URL to a bounded vector
-			 let bounded_url: BoundedVec<u8, <T as self::Config>::MaxUrlLength> =
-				 url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
-	 
-			 // Ensure the URL is not already whitelisted
-			 ensure!(!Whitelist::<T>::contains_key(&bounded_url), Error::<T>::UrlAlreadyWhitelisted);
-	 
-			 // Add to the whitelist
-			 Whitelist::<T>::insert(&bounded_url, ());
-			 Self::deposit_event(Event::WhitelistUpdated { url, added: true });
-			 Ok(())
-		 }
-	 
-		 /// Remove a URL from the whitelist.
-		 #[pallet::call_index(3)]
-		 #[pallet::weight(10_000)]
-		 pub fn remove_from_whitelist(origin: OriginFor<T>, url: Vec<u8>) -> DispatchResult {
-			 ensure_root(origin)?; // Only root can modify the whitelist
-	 
-			 // Convert URL to a bounded vector
-			 let bounded_url: BoundedVec<u8, <T as self::Config>::MaxUrlLength> =
-				 url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
-	 
-			 // Ensure the URL is already whitelisted
-			 ensure!(Whitelist::<T>::contains_key(&bounded_url), Error::<T>::UrlNotWhitelisted);
-	 
-			 // Remove from the whitelist
-			 Whitelist::<T>::remove(&bounded_url);
-			 Self::deposit_event(Event::WhitelistUpdated { url, added: false });
-			 Ok(())
-		 }
+        }        
     }
 }
 

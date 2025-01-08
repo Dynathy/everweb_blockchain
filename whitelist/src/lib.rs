@@ -63,21 +63,43 @@ pub mod pallet {
         UrlTooLong,
     }
 
+    impl<T: Config> Pallet<T> {
+        /// Check if a URL is whitelisted.
+        pub fn is_whitelisted(url: Vec<u8>) -> Result<bool, Error<T>> {
+            // Convert URL to BoundedVec
+            let bounded_url: BoundedVec<u8, T::MaxUrlLength> =
+                url.try_into().map_err(|_| Error::<T>::UrlTooLong)?;
+
+            // Check existence in storage
+            Ok(Whitelist::<T>::contains_key(&bounded_url))
+        }
+    }
+
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Add a URL to the whitelist.
         #[pallet::call_index(0)]
         #[pallet::weight(10_000)]
         pub fn add_url(origin: OriginFor<T>, url: Vec<u8>) -> DispatchResult {
+            log::info!("add_url called with URL: {:?}", url);
+        
             T::WhitelistOrigin::ensure_origin(origin)?;
-
+            log::info!("Origin check passed");
+        
             let bounded_url: BoundedVec<u8, T::MaxUrlLength> =
                 url.clone().try_into().map_err(|_| Error::<T>::UrlTooLong)?;
-
+            log::info!("Converted URL to BoundedVec: {:?}", bounded_url);
+        
             ensure!(!Whitelist::<T>::contains_key(&bounded_url), Error::<T>::UrlAlreadyWhitelisted);
-
+            log::info!("URL is not already whitelisted");
+        
             Whitelist::<T>::insert(&bounded_url, ());
+            log::info!("URL inserted into whitelist storage");
+            log::info!("Whitelist state inside of add_url: {:?}", Whitelist::<T>::iter().collect::<Vec<_>>());
+        
             Self::deposit_event(Event::UrlAdded { url });
+            log::info!("Event deposited: UrlAdded");
+        
             Ok(())
         }
 
