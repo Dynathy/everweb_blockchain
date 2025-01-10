@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet::*;
+pub use crate::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -87,7 +87,10 @@ pub mod pallet {
         /// Register a new validator with a deposit.
         #[pallet::call_index(0)]
         #[pallet::weight(10_000)]
-        pub fn register_validator(origin: OriginFor<T>, deposit: BalanceOf<T>) -> DispatchResult {
+        pub fn register_validator(
+			origin: OriginFor<T>, 
+			deposit: BalanceOf<T>
+		) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(!Validators::<T>::contains_key(&who), Error::<T>::ValidatorAlreadyRegistered);
@@ -110,20 +113,79 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
+			log::info!("Validator {:?} is attempting to validate submission {:?}", who, hash);
+
 			// Ensure validator is registered
 			ensure!(Validators::<T>::contains_key(&who), Error::<T>::ValidatorNotRegistered);
+
+			log::info!("Validator {:?} is registered.", who);
 
 			// Ensure the submission was assigned to this validator
 			let assignments = AssignedSubmissions::<T>::get(&who);
 			ensure!(assignments.contains(&hash), Error::<T>::SubmissionNotAssigned);
 
+			log::info!("Submission {:?} was assigned to validator {:?}.", hash, who);
+			
 			// Emit event and notify treasury manager
 			Self::deposit_event(Event::ValidationCompleted { validator: who.clone(), hash, valid: is_valid });
+
+			log::info!(
+				"Validation completed for submission {:?} by validator {:?}. Valid: {}",
+				hash,
+				who,
+				is_valid
+			);
+
 			Ok(())
 		}
-    }
-}
+	}
+	impl<T: Config> Pallet<T> {
+		pub fn assign_submission(validator: T::AccountId, hash: T::Hash) -> DispatchResult {
 
+			log::info!(
+				"Assigning submission {:?} to validator {:?}.",
+				hash,
+				validator
+			);
+
+			let mut assignments = AssignedSubmissions::<T>::get(&validator);
+
+			log::info!(
+				"Current assignments for validator {:?}: {:?}",
+				validator,
+				assignments
+			);
+
+			assignments.try_push(hash).map_err(|_| Error::<T>::UrlTooLong)?;
+			log::info!(
+				"Submission {:?} added to assignments for validator {:?}.",
+				hash,
+				validator
+			);
+
+			AssignedSubmissions::<T>::insert(&validator, assignments);
+			log::info!(
+				"Assignments for validator {:?} updated in storage.",
+				validator
+			);
+			
+			// Emit event for submission assignment
+			Self::deposit_event(Event::SubmissionAssigned { validator: validator.clone(), hash });
+			log::info!(
+				"Event emitted: Submission {:?} assigned to validator {:?}.",
+				hash,
+				validator
+			);
+
+			Ok(())
+		}
+	
+		pub fn validators_iter() -> impl Iterator<Item = (T::AccountId, BalanceOf<T>)> {
+			log::info!("Iterating over validators.");
+			Validators::<T>::iter()
+		}
+	}
+}
 #[cfg(test)]
 mod mock;
 

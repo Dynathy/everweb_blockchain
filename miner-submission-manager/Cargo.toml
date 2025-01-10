@@ -26,7 +26,9 @@ sp-std = { version = "14.0.0", default-features = false }
 sp-core = { version = "34.0.0", default-features = false }
 pallet-balances = { version = "38.0.0", default-features = false }
 pallet-whitelist = { version = "0.1.0", path = "../whitelist"}
+pallet-validator = { version = "0.1.0", path = "../validator"}
 log = { version = "0.4.21", default-features = false }
+rand = "=0.8.5"
 
 [dev-dependencies]
 env_logger = "0.10"
