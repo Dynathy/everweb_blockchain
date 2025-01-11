@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, System, ValidatorSubmissionManager,};
+    use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, System, VerifierSubmissionManager,};
     use crate::mock::Test;
     use crate::mock::Balances;
     use crate::Error;
@@ -34,44 +34,44 @@ mod tests {
         init_logger(); // Initialize the logger
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
-            let validator = AccountId32::new([2; 32]);
+            let verifier = AccountId32::new([2; 32]);
             let submission_hash = H256::from_low_u64_be(1);
 
             log::info!("Starting test for valid submission...");
-            log::info!("Miner: {:?}, Validator: {:?}, Submission Hash: {:?}", miner, validator, submission_hash);
+            log::info!("Miner: {:?}, Verifier: {:?}, Submission Hash: {:?}", miner, verifier, submission_hash);
 
             // Set balances
             let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
             log::info!(
-                "ValidatorSubmissionManager Treasury account: {:?}",
+                "VerifierSubmissionManager Treasury account: {:?}",
                 treasury_account
             );
             // Update the balance
             pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
-            // Validator submits a valid submission
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator.clone()),
+            // Verifier submits a valid submission
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier.clone()),
                 miner.clone(),
                 submission_hash,
                 true
             ));
 
-            log::info!("Submission by {:?} for {:?} validated successfully", validator, miner);
+            log::info!("Submission by {:?} for {:?} validated successfully", verifier, miner);
             // Ensure the submission is recorded
-            let submissions = ValidatorSubmissionManager::validator_submissions(submission_hash);
+            let submissions = VerifierSubmissionManager::verifier_submissions(submission_hash);
             assert_eq!(submissions.len(), 1);
-            assert_eq!(submissions[0], (validator.clone(), true));
+            assert_eq!(submissions[0], (verifier.clone(), true));
 
             // Ensure the deadline is set
-            let deadline = ValidatorSubmissionManager::validation_deadline(submission_hash);
+            let deadline = VerifierSubmissionManager::verification_deadline(submission_hash);
             assert!(deadline.is_some());
             log::info!("Test for valid submission completed successfully.");
         });
     }
 
     #[test]
-    fn test_exceed_max_validator_submissions() {
+    fn test_exceed_max_verifier_submissions() {
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
             let submission_hash = H256::from_low_u64_be(1);
@@ -82,9 +82,9 @@ mod tests {
 
             // Submit the maximum number of submissions
             for i in 0..10 {
-                let validator = AccountId32::new([i as u8; 32]);
-                assert_ok!(ValidatorSubmissionManager::submit_validation(
-                    RuntimeOrigin::signed(validator.clone()),
+                let verifier = AccountId32::new([i as u8; 32]);
+                assert_ok!(VerifierSubmissionManager::submit_verification(
+                    RuntimeOrigin::signed(verifier.clone()),
                     miner.clone(),
                     submission_hash,
                     true
@@ -92,23 +92,23 @@ mod tests {
             }
 
             // Attempt to submit beyond the limit
-            let extra_validator = AccountId32::new([99; 32]);
+            let extra_verifier = AccountId32::new([99; 32]);
             assert_err!(
-                ValidatorSubmissionManager::submit_validation(
-                    RuntimeOrigin::signed(extra_validator.clone()),
+                VerifierSubmissionManager::submit_verification(
+                    RuntimeOrigin::signed(extra_verifier.clone()),
                     miner.clone(),
                     submission_hash,
                     true
                 ),
-                sp_runtime::DispatchError::Other("ValidatorSubmissions is full")
+                sp_runtime::DispatchError::Other("VerifierSubmissions is full")
             );
 
             // Ensure no additional entries are added
-            let submissions = ValidatorSubmissionManager::validator_submissions(submission_hash);
+            let submissions = VerifierSubmissionManager::verifier_submissions(submission_hash);
             assert_eq!(
                 submissions.len(),
                 10,
-                "ValidatorSubmissions should contain exactly the maximum allowed entries"
+                "VerifierSubmissions should contain exactly the maximum allowed entries"
             );
         });
     }
@@ -117,16 +117,16 @@ mod tests {
     fn test_submission_after_deadline() {
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
-            let validator = AccountId32::new([2; 32]);
+            let verifier = AccountId32::new([2; 32]);
             let submission_hash = H256::from_low_u64_be(1);
 
             // Set balances
             let treasury_account = TreasuryManagerPalletId::get().into_account_truncating();
             pallet_balances::Pallet::<Test>::set_balance(&treasury_account, 1_000u128);
 
-            // Submit a validation
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator.clone()),
+            // Submit a verification
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier.clone()),
                 miner.clone(),
                 submission_hash,
                 true
@@ -136,15 +136,15 @@ mod tests {
             System::set_block_number(10);
 
             // Attempt another submission after the deadline
-            let late_validator = AccountId32::new([3; 32]);
+            let late_verifier = AccountId32::new([3; 32]);
             assert_err!(
-                ValidatorSubmissionManager::submit_validation(
-                    RuntimeOrigin::signed(late_validator.clone()),
+                VerifierSubmissionManager::submit_verification(
+                    RuntimeOrigin::signed(late_verifier.clone()),
                     miner.clone(),
                     submission_hash,
                     true
                 ),
-                crate::Error::<Test>::ValidationExpired
+                crate::Error::<Test>::VerificationExpired
             );
         });
     }
@@ -155,9 +155,9 @@ mod tests {
         init_logger(); // Ensure logger is initialized
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
-            let validator1 = AccountId32::new([2; 32]);
-            let validator2 = AccountId32::new([3; 32]);
-            let validator3 = AccountId32::new([4; 32]);
+            let verifier1 = AccountId32::new([2; 32]);
+            let verifier2 = AccountId32::new([3; 32]);
+            let verifier3 = AccountId32::new([4; 32]);
             let submission_hash = H256::random();
 
             // Set balances
@@ -171,24 +171,24 @@ mod tests {
             // Set the initial block number
             System::set_block_number(1);
 
-            // Submit validations
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator1.clone()),
+            // Submit verifications
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier1.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
             ));
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator2.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier2.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
             ));
 
-            //Advanced the block and add another validator
+            //Advanced the block and add another verifier
             System::set_block_number(2);
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator3.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier3.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
@@ -196,7 +196,7 @@ mod tests {
 
             log::info!(
                 "Submissions before finalizing: {:?}",
-                ValidatorSubmissionManager::validator_submissions(submission_hash)
+                VerifierSubmissionManager::verifier_submissions(submission_hash)
             );
 
             // Call `on_finalize` before the deadline
@@ -210,7 +210,7 @@ mod tests {
             );
 
             // Ensure the correct event is emitted
-            System::assert_last_event(RuntimeEvent::ValidatorSubmissionManager(
+            System::assert_last_event(RuntimeEvent::VerifierSubmissionManager(
                 crate::Event::SubmissionValidated { miner, hash: submission_hash, valid: true },
             ));
 
@@ -230,11 +230,11 @@ mod tests {
     fn test_2_3_threshold_submission() {
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
-            let validator1 = AccountId32::new([2; 32]);
-            let validator2 = AccountId32::new([3; 32]);
-            let validator3 = AccountId32::new([4; 32]);
-            let validator4 = AccountId32::new([5; 32]);
-            let validator5 = AccountId32::new([6; 32]);
+            let verifier1 = AccountId32::new([2; 32]);
+            let verifier2 = AccountId32::new([3; 32]);
+            let verifier3 = AccountId32::new([4; 32]);
+            let verifier4 = AccountId32::new([5; 32]);
+            let verifier5 = AccountId32::new([6; 32]);
             let submission_hash = H256::random();
 
             // Set balances
@@ -244,34 +244,34 @@ mod tests {
             // Set initial block
             System::set_block_number(1);
 
-            // Validators submit their validations
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator1.clone()),
+            // Verifiers submit their verifications
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier1.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
             ));
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator2.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier2.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
             ));
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator3.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier3.clone()),
                 miner.clone(),
                 submission_hash,
                 false,
             ));
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator4.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier4.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
             ));
 
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator5.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier5.clone()),
                 miner.clone(),
                 submission_hash,
                 true,
@@ -279,13 +279,13 @@ mod tests {
 
             // Process submissions
             System::set_block_number(5);
-            <ValidatorSubmissionManager as frame_support::traits::Hooks<BlockNumberFor<Test>>>::on_finalize(5);
+            <VerifierSubmissionManager as frame_support::traits::Hooks<BlockNumberFor<Test>>>::on_finalize(5);
 
             // Check processed status
             assert!(ProcessedSubmissions::<Test>::contains_key(submission_hash));
 
             // Check the last event
-            System::assert_last_event(RuntimeEvent::ValidatorSubmissionManager(
+            System::assert_last_event(RuntimeEvent::VerifierSubmissionManager(
                 crate::Event::SubmissionValidated {
                     miner,
                     hash: submission_hash,
@@ -299,11 +299,11 @@ mod tests {
     fn test_2_3_threshold_submission_failure() {
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
-            let validator1 = AccountId32::new([2; 32]);
-            let validator2 = AccountId32::new([3; 32]);
-            let validator3 = AccountId32::new([4; 32]);
-            let validator4 = AccountId32::new([5; 32]);
-            let validator5 = AccountId32::new([6; 32]);
+            let verifier1 = AccountId32::new([2; 32]);
+            let verifier2 = AccountId32::new([3; 32]);
+            let verifier3 = AccountId32::new([4; 32]);
+            let verifier4 = AccountId32::new([5; 32]);
+            let verifier5 = AccountId32::new([6; 32]);
             let submission_hash = H256::random();
 
             // Set balances
@@ -313,34 +313,34 @@ mod tests {
             // Set initial block
             System::set_block_number(1);
 
-            // Validators submit their validations
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator1.clone()),
+            // Verifiers submit their verifications
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier1.clone()),
                 miner.clone(),
                 submission_hash,
                 false,
             ));
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator2.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier2.clone()),
                 miner.clone(),
                 submission_hash,
                 false,
             ));
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator3.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier3.clone()),
                 miner.clone(),
                 submission_hash,
                 false,
             ));
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator4.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier4.clone()),
                 miner.clone(),
                 submission_hash,
                 false,
             ));
 
-            assert_ok!(ValidatorSubmissionManager::submit_validation(
-                RuntimeOrigin::signed(validator5.clone()),
+            assert_ok!(VerifierSubmissionManager::submit_verification(
+                RuntimeOrigin::signed(verifier5.clone()),
                 miner.clone(),
                 submission_hash,
                 false,
@@ -348,13 +348,13 @@ mod tests {
 
             // Process submissions
             System::set_block_number(5);
-            <ValidatorSubmissionManager as frame_support::traits::Hooks<BlockNumberFor<Test>>>::on_finalize(5);
+            <VerifierSubmissionManager as frame_support::traits::Hooks<BlockNumberFor<Test>>>::on_finalize(5);
 
             // Check processed status
             assert!(ProcessedSubmissions::<Test>::contains_key(submission_hash));
 
             // Check the last event
-            System::assert_last_event(RuntimeEvent::ValidatorSubmissionManager(
+            System::assert_last_event(RuntimeEvent::VerifierSubmissionManager(
                 crate::Event::SubmissionValidated {
                     miner,
                     hash: submission_hash,

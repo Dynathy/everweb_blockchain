@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate as pallet_validator;
+use crate as pallet_verifier;
 use frame_support::{parameter_types, traits::ConstU128, traits::ConstU64};
 use sp_core::H256;
 use sp_runtime::{
@@ -22,7 +22,7 @@ frame_support::construct_runtime!(
     {
         System: frame_system,
         Balances: pallet_balances,
-        Validator: pallet_validator,
+        Verifier: pallet_verifier,
     }
 );
 
@@ -31,7 +31,7 @@ parameter_types! {
     pub const MaxLocks: u32 = 50;
     pub const MaxUrlLength: u32 = 256;
     pub const SubmissionFee: u64 = 10;
-    pub const ValidatorPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/valid");
+    pub const VerifierPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/valid");
 }
 
 // Frame System Config
@@ -84,11 +84,11 @@ impl pallet_balances::Config for Test {
 }
 
 
-impl pallet_validator::Config for Test {
+impl pallet_verifier::Config for Test {
     type Currency = Balances;
     type SubmissionFee = SubmissionFee;
     type RuntimeEvent = RuntimeEvent;
-    type PalletId = ValidatorPalletId;
+    type PalletId = VerifierPalletId;
     type MaxUrlLength = MaxUrlLength;
     //type WeightInfo = ();
 }

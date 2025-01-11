@@ -1,5 +1,5 @@
 [package]
-name = "pallet-validator-submission-manager"
+name = "pallet-verifier-submission-manager"
 authors = ["Anonymous"]
 description = "Frame Pallet"
 version = "0.1.0"

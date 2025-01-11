@@ -35,18 +35,18 @@ pub mod pallet {
     	type MaxUrlLength: Get<u32>; // Maximum length for URLs
 	}
 
-    /// Tracks registered validators.
+    /// Tracks registered verifiers.
     #[pallet::storage]
-    #[pallet::getter(fn validators)]
-    pub type Validators<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, OptionQuery>;
+    #[pallet::getter(fn verifiers)]
+    pub type Verifiers<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, OptionQuery>;
 
-	/// Tracks assigned submissions to validators.
+	/// Tracks assigned submissions to verifiers.
 	#[pallet::storage]
 	#[pallet::getter(fn assigned_submissions)]
 	pub type AssignedSubmissions<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		T::AccountId, // Validator Account ID
+		T::AccountId, // Verifier Account ID
 		BoundedVec<T::Hash, T::MaxUrlLength>, // List of assigned submission hashes with max length
 		ValueQuery
 	>;
@@ -55,18 +55,18 @@ pub mod pallet {
     #[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ValidatorRegistered { validator: T::AccountId, deposit: BalanceOf<T> },
-		/// Submission assigned to a validator.
-		SubmissionAssigned { validator: T::AccountId, hash: T::Hash },
-		/// Validation completed by a validator.
-		ValidationCompleted { validator: T::AccountId, hash: T::Hash, valid: bool },
+		VerifierRegistered { verifier: T::AccountId, deposit: BalanceOf<T> },
+		/// Submission assigned to a verifier.
+		SubmissionAssigned { verifier: T::AccountId, hash: T::Hash },
+		/// Validation completed by a verifier.
+		ValidationCompleted { verifier: T::AccountId, hash: T::Hash, valid: bool },
 	}
 
     /// Errors that can occur in the pallet.
     #[pallet::error]
     pub enum Error<T> {
-        ValidatorAlreadyRegistered,
-        ValidatorNotRegistered,
+        VerifierAlreadyRegistered,
+        VerifierNotRegistered,
         NotWhitelisted,
 		SubmissionNotAssigned,
         InsufficientFunds,
@@ -84,26 +84,26 @@ pub mod pallet {
     /// Pallet calls.
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Register a new validator with a deposit.
+        /// Register a new verifier with a deposit.
         #[pallet::call_index(0)]
         #[pallet::weight(10_000)]
-        pub fn register_validator(
+        pub fn register_verifier(
 			origin: OriginFor<T>, 
 			deposit: BalanceOf<T>
 		) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            ensure!(!Validators::<T>::contains_key(&who), Error::<T>::ValidatorAlreadyRegistered);
+            ensure!(!Verifiers::<T>::contains_key(&who), Error::<T>::VerifierAlreadyRegistered);
 
             T::Currency::reserve(&who, deposit)?;
-            Validators::<T>::insert(&who, deposit);
+            Verifiers::<T>::insert(&who, deposit);
 			log::info!("About to deposit event for miner registration");
-            Self::deposit_event(Event::ValidatorRegistered { validator: who.clone(), deposit });
+            Self::deposit_event(Event::VerifierRegistered { verifier: who.clone(), deposit });
 			log::info!("Event deposited");
             Ok(())
         }
 
-		/// Validators validate a submission.
+		/// Verifiers validate a submission.
 		#[pallet::call_index(1)]
 		#[pallet::weight(10_000)]
 		pub fn validate_submission(
@@ -113,24 +113,24 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			log::info!("Validator {:?} is attempting to validate submission {:?}", who, hash);
+			log::info!("Verifier {:?} is attempting to validate submission {:?}", who, hash);
 
-			// Ensure validator is registered
-			ensure!(Validators::<T>::contains_key(&who), Error::<T>::ValidatorNotRegistered);
+			// Ensure verifier is registered
+			ensure!(Verifiers::<T>::contains_key(&who), Error::<T>::VerifierNotRegistered);
 
-			log::info!("Validator {:?} is registered.", who);
+			log::info!("Verifier {:?} is registered.", who);
 
-			// Ensure the submission was assigned to this validator
+			// Ensure the submission was assigned to this verifier
 			let assignments = AssignedSubmissions::<T>::get(&who);
 			ensure!(assignments.contains(&hash), Error::<T>::SubmissionNotAssigned);
 
-			log::info!("Submission {:?} was assigned to validator {:?}.", hash, who);
+			log::info!("Submission {:?} was assigned to verifier {:?}.", hash, who);
 			
 			// Emit event and notify treasury manager
-			Self::deposit_event(Event::ValidationCompleted { validator: who.clone(), hash, valid: is_valid });
+			Self::deposit_event(Event::ValidationCompleted { verifier: who.clone(), hash, valid: is_valid });
 
 			log::info!(
-				"Validation completed for submission {:?} by validator {:?}. Valid: {}",
+				"Validation completed for submission {:?} by verifier {:?}. Valid: {}",
 				hash,
 				who,
 				is_valid
@@ -140,49 +140,49 @@ pub mod pallet {
 		}
 	}
 	impl<T: Config> Pallet<T> {
-		pub fn assign_submission(validator: T::AccountId, hash: T::Hash) -> DispatchResult {
+		pub fn assign_submission(verifier: T::AccountId, hash: T::Hash) -> DispatchResult {
 
 			log::info!(
-				"Assigning submission {:?} to validator {:?}.",
+				"Assigning submission {:?} to verifier {:?}.",
 				hash,
-				validator
+				verifier
 			);
 
-			let mut assignments = AssignedSubmissions::<T>::get(&validator);
+			let mut assignments = AssignedSubmissions::<T>::get(&verifier);
 
 			log::info!(
-				"Current assignments for validator {:?}: {:?}",
-				validator,
+				"Current assignments for verifier {:?}: {:?}",
+				verifier,
 				assignments
 			);
 
 			assignments.try_push(hash).map_err(|_| Error::<T>::UrlTooLong)?;
 			log::info!(
-				"Submission {:?} added to assignments for validator {:?}.",
+				"Submission {:?} added to assignments for verifier {:?}.",
 				hash,
-				validator
+				verifier
 			);
 
-			AssignedSubmissions::<T>::insert(&validator, assignments);
+			AssignedSubmissions::<T>::insert(&verifier, assignments);
 			log::info!(
-				"Assignments for validator {:?} updated in storage.",
-				validator
+				"Assignments for verifier {:?} updated in storage.",
+				verifier
 			);
 			
 			// Emit event for submission assignment
-			Self::deposit_event(Event::SubmissionAssigned { validator: validator.clone(), hash });
+			Self::deposit_event(Event::SubmissionAssigned { verifier: verifier.clone(), hash });
 			log::info!(
-				"Event emitted: Submission {:?} assigned to validator {:?}.",
+				"Event emitted: Submission {:?} assigned to verifier {:?}.",
 				hash,
-				validator
+				verifier
 			);
 
 			Ok(())
 		}
 	
-		pub fn validators_iter() -> impl Iterator<Item = (T::AccountId, BalanceOf<T>)> {
-			log::info!("Iterating over validators.");
-			Validators::<T>::iter()
+		pub fn verifiers_iter() -> impl Iterator<Item = (T::AccountId, BalanceOf<T>)> {
+			log::info!("Iterating over verifiers.");
+			Verifiers::<T>::iter()
 		}
 	}
 }

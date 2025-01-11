@@ -15,7 +15,7 @@ pub mod pallet {
     use sp_std::vec::Vec;
 	use sp_runtime::traits::AccountIdConversion;
     use pallet_whitelist;
-    use pallet_validator as validator; // Import validator pallet
+    use pallet_verifier as verifier; // Import verifier pallet
 
 
     use frame_system::Pallet as System;
@@ -34,7 +34,7 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_whitelist::Config + validator::Config {
+	pub trait Config: frame_system::Config + pallet_whitelist::Config + verifier::Config {
 		type Currency: ReservableCurrency<Self::AccountId>;
 		type SubmissionFee: Get<BalanceOf<Self>>;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -74,9 +74,9 @@ pub mod pallet {
 		UrlTooLong
     }
 
-    // Helper function to shuffle validators
-    fn shuffle_validators<T: Config>(
-        validators: Vec<T::AccountId>,
+    // Helper function to shuffle verifiers
+    fn shuffle_verifiers<T: Config>(
+        verifiers: Vec<T::AccountId>,
         seed: &[u8],
     ) -> Vec<T::AccountId> {
         // Generate a deterministic RNG seed
@@ -86,11 +86,11 @@ pub mod pallet {
         // Create a small RNG instance
         let mut rng = SmallRng::from_seed(rng_seed);
     
-        // Shuffle the validators
-        let mut shuffled_validators = validators.clone();
-        shuffled_validators.shuffle(&mut rng);
+        // Shuffle the verifiers
+        let mut shuffled_verifiers = verifiers.clone();
+        shuffled_verifiers.shuffle(&mut rng);
     
-        shuffled_validators
+        shuffled_verifiers
     }
 
 	/// Pallet calls.
@@ -128,30 +128,30 @@ pub mod pallet {
             // Insert submission
             Submissions::<T>::insert(hash, (miner.clone(), bounded_url));
 
-            // Get all validators
-            let all_validators: Vec<_> = validator::Pallet::<T>::validators_iter().collect();
-            let total_validators = all_validators.len();
+            // Get all verifiers
+            let all_verifiers: Vec<_> = verifier::Pallet::<T>::verifiers_iter().collect();
+            let total_verifiers = all_verifiers.len();
 
-            // Ensure enough validators are available
+            // Ensure enough verifiers are available
             ensure!(
-                total_validators >= 3,
-                "Not enough validators available to assign"
+                total_verifiers >= 3,
+                "Not enough verifiers available to assign"
             );
 
-            // Extract only the account IDs from all_validators
-            let validator_accounts: Vec<T::AccountId> = all_validators
+            // Extract only the account IDs from all_verifiers
+            let verifier_accounts: Vec<T::AccountId> = all_verifiers
                 .into_iter()
                 .map(|(account, _)| account) // Extract the account ID
                 .collect();
 
-            // Shuffle validators using the submission hash as a seed
-            let shuffled_validators = shuffle_validators::<T>(validator_accounts, hash.as_ref());
-            let num_to_assign = (shuffled_validators.len()).min(10).max(3); // Choose between 3 and 10
+            // Shuffle verifiers using the submission hash as a seed
+            let shuffled_verifiers = shuffle_verifiers::<T>(verifier_accounts, hash.as_ref());
+            let num_to_assign = (shuffled_verifiers.len()).min(10).max(3); // Choose between 3 and 10
 
-            // Assign to the top `num_to_assign` validators from the shuffled list
-            for validator in shuffled_validators.iter().take(num_to_assign) {
-                validator::Pallet::<T>::assign_submission(validator.clone(), hash)?;
-                log::info!("Assigned submission {:?} to validator {:?}", hash, validator);
+            // Assign to the top `num_to_assign` verifiers from the shuffled list
+            for verifier in shuffled_verifiers.iter().take(num_to_assign) {
+                verifier::Pallet::<T>::assign_submission(verifier.clone(), hash)?;
+                log::info!("Assigned submission {:?} to verifier {:?}", hash, verifier);
             }
 
             // Emit an event

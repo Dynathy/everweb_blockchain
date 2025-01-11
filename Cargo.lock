@@ -4614,6 +4614,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpc-core"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14f7f76aef2d054868398427f6c54943cf3d1caa9a7ec7d0c38d69df97a965eb"
+dependencies = [
+ "futures",
+ "futures-executor",
+ "futures-util",
+ "log",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
+name = "jsonrpc-derive"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b939a78fa820cdfcb7ee7484466746a7377760970f6f9c6fe19f9edcc8a38d2"
+dependencies = [
+ "proc-macro-crate 0.1.5",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "jsonrpsee"
 version = "0.24.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7028,6 +7055,7 @@ dependencies = [
  "log",
  "pallet-balances 38.0.0",
  "pallet-miner-submission-manager",
+ "pallet-verifier",
  "pallet-whitelist 0.1.0",
  "parity-scale-codec",
  "scale-info",
@@ -7047,7 +7075,7 @@ dependencies = [
  "frame-system 37.1.0",
  "log",
  "pallet-balances 38.0.0",
- "pallet-validator",
+ "pallet-verifier",
  "pallet-whitelist 0.1.0",
  "parity-scale-codec",
  "rand",
@@ -7642,13 +7670,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-validator"
+name = "pallet-verifier"
 version = "0.1.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking 37.0.0",
  "frame-support 37.0.1",
  "frame-system 37.1.0",
+ "jsonrpc-core",
+ "jsonrpc-derive",
  "log",
  "pallet-balances 38.0.0",
  "parity-scale-codec",
@@ -7660,7 +7690,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-validator-submission-manager"
+name = "pallet-verifier-submission-manager"
 version = "0.1.0"
 dependencies = [
  "env_logger",
@@ -9600,6 +9630,15 @@ dependencies = [
  "nanorand",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "proc-macro-crate"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
+dependencies = [
+ "toml 0.5.11",
 ]
 
 [[package]]

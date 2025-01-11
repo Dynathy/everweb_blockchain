@@ -28,10 +28,10 @@ pub mod pallet {
         // Add TotalReward
         type TotalReward: Get<BalanceOf<Self>>;
         #[pallet::constant]
-        type MaxValidatorSubmissions: Get<u32>;
+        type MaxVerifierSubmissions: Get<u32>;
 
         #[pallet::constant]
-        type ValidationTimeout: Get<BlockNumberFor<Self>>;
+        type VerificationTimeout: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
@@ -41,18 +41,18 @@ pub mod pallet {
     const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::storage]
-    #[pallet::getter(fn validator_submissions)]
-    pub type ValidatorSubmissions<T: Config> = StorageMap<
+    #[pallet::getter(fn verifier_submissions)]
+    pub type VerifierSubmissions<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
         T::Hash,
-        BoundedVec<(T::AccountId, bool), T::MaxValidatorSubmissions>,
+        BoundedVec<(T::AccountId, bool), T::MaxVerifierSubmissions>,
         ValueQuery,
     >;
 
     #[pallet::storage]
-    #[pallet::getter(fn validation_deadline)]
-    pub type ValidationDeadline<T: Config> = StorageMap<
+    #[pallet::getter(fn verification_deadline)]
+    pub type VerificationDeadline<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
         T::Hash,
@@ -90,13 +90,13 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         SubmissionAlreadyProcessed,
-        ValidationExpired,
+        VerificationExpired,
     }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn on_finalize(n: BlockNumberFor<T>) {
-            for (hash, deadline) in ValidationDeadline::<T>::iter() {
+            for (hash, deadline) in VerificationDeadline::<T>::iter() {
                 log::debug!(
                     "on_finalize: Current Block: {:?}, Hash: {:?}, Deadline: {:?}",
                     n,
@@ -111,7 +111,7 @@ pub mod pallet {
                 }
 
                 // Retrieve submissions for the given hash
-                let submissions = ValidatorSubmissions::<T>::get(&hash);
+                let submissions = VerifierSubmissions::<T>::get(&hash);
 
                 // If the submission has sufficient entries and is before the deadline, process it
                 if submissions.len() > 0 && n <= deadline {
@@ -134,7 +134,7 @@ pub mod pallet {
                     ProcessedSubmissions::<T>::insert(&hash, ());
                     log::info!("Submission marked as expired: {:?}", hash);
                 } else {
-                    log::info!("Submission still valid and awaiting further validations: {:?}", hash);
+                    log::info!("Submission still valid and awaiting further verifications: {:?}", hash);
                 }
             }
         }
@@ -144,32 +144,32 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
         #[pallet::weight(10_000)]
-        pub fn submit_validation(
+        pub fn submit_verification(
             origin: OriginFor<T>,
             miner: T::AccountId,
             hash: T::Hash,
             is_valid: bool,
         ) -> DispatchResult {
-            let validator = ensure_signed(origin)?;
+            let verifier = ensure_signed(origin)?;
             
             log::info!(
-                "submit_validation: Miner: {:?}, Validator: {:?}, Hash: {:?}, Valid: {:?}",
-                miner, validator, hash, is_valid
+                "submit_verification: Miner: {:?}, Verifier: {:?}, Hash: {:?}, Valid: {:?}",
+                miner, verifier, hash, is_valid
             );
-            ///Ensure that when a validation is submitted the miner is stored
+            ///Ensure that when a verification is submitted the miner is stored
             if MinerForHash::<T>::get(&hash).is_none() {
                 MinerForHash::<T>::insert(&hash, &miner);
                 log::info!("Miner for hash {:?} set to {:?}", hash, miner);
             }
 
-            ValidatorSubmissions::<T>::try_mutate(&hash, |submissions| -> Result<(), DispatchError> {
-                log::info!("Validator submissions before mutation: {:?}", submissions);
-                if let Err(_) = submissions.try_push((validator.clone(), is_valid)) {
+            VerifierSubmissions::<T>::try_mutate(&hash, |submissions| -> Result<(), DispatchError> {
+                log::info!("Verifier submissions before mutation: {:?}", submissions);
+                if let Err(_) = submissions.try_push((verifier.clone(), is_valid)) {
                     // Handle case where the BoundedVec is full
-                    log::info!("ValidatorSubmissions is full for hash {:?}", hash);
-                    return Err(DispatchError::Other("ValidatorSubmissions is full"));
+                    log::info!("VerifierSubmissions is full for hash {:?}", hash);
+                    return Err(DispatchError::Other("VerifierSubmissions is full"));
                 }
-                log::info!("Validator submissions after mutation: {:?}", submissions);
+                log::info!("Verifier submissions after mutation: {:?}", submissions);
                 Ok(())
             })?;
 
@@ -179,21 +179,21 @@ pub mod pallet {
             );
         
             let current_block = <frame_system::Pallet<T>>::block_number();
-            if let Some(deadline) = ValidationDeadline::<T>::get(&hash) {
+            if let Some(deadline) = VerificationDeadline::<T>::get(&hash) {
                 log::info!("Submission deadline for hash {:?}: {:?}", hash, deadline);
-                ensure!(current_block <= deadline, Error::<T>::ValidationExpired);
+                ensure!(current_block <= deadline, Error::<T>::VerificationExpired);
             } else {
-                ValidationDeadline::<T>::insert(&hash, current_block + T::ValidationTimeout::get());
+                VerificationDeadline::<T>::insert(&hash, current_block + T::VerificationTimeout::get());
                 log::info!(
-                    "Set new validation deadline for hash {:?}: {:?}",
+                    "Set new verification deadline for hash {:?}: {:?}",
                     hash,
-                    current_block + T::ValidationTimeout::get()
+                    current_block + T::VerificationTimeout::get()
                 );
             }
         
             // Fetch the updated submissions for further processing
-            let submissions = ValidatorSubmissions::<T>::get(&hash);
-            if submissions.len() >= T::MaxValidatorSubmissions::get() as usize {
+            let submissions = VerifierSubmissions::<T>::get(&hash);
+            if submissions.len() >= T::MaxVerifierSubmissions::get() as usize {
                 Self::process_submissions(miner, hash, submissions.to_vec());
                 ProcessedSubmissions::<T>::insert(&hash, ());
             }
@@ -223,10 +223,10 @@ pub mod pallet {
                 (2.0 / 3.0) * total_count as f32
             );
 
-            // Ensure a minimum of 3 validators
+            // Ensure a minimum of 3 verifiers
             if total_count < 3 {
                 log::info!(
-                    "Insufficient validators for hash {:?}: Only {} validators present.",
+                    "Insufficient verifiers for hash {:?}: Only {} verifiers present.",
                     hash,
                     total_count
                 );
@@ -236,14 +236,14 @@ pub mod pallet {
             // Calculate 2/3 threshold
             if valid_count as f32 >= (2.0 / 3.0) * total_count as f32 {
                 log::info!(
-                    "2/3 threshold met: {} out of {} validators signaled valid",
+                    "2/3 threshold met: {} out of {} verifiers signaled valid",
                     valid_count,
                     total_count
                 );
                 Self::handle_valid_submission(hash, miner, submissions);
             } else {
                 log::info!(
-                    "2/3 threshold not met: {} out of {} validators signaled invalid",
+                    "2/3 threshold not met: {} out of {} verifiers signaled invalid",
                     total_count - valid_count,
                     total_count
                 );
@@ -257,17 +257,17 @@ pub mod pallet {
     
 
         fn handle_valid_submission(hash: T::Hash, miner: T::AccountId, submissions: Vec<(T::AccountId, bool)>) {
-            // Extract validator accounts
-            let validators: Vec<T::AccountId> = submissions.into_iter().map(|(validator, _)| validator).collect();
+            // Extract verifier accounts
+            let verifiers: Vec<T::AccountId> = submissions.into_iter().map(|(verifier, _)| verifier).collect();
 
             // Define total reward (this can be parameterized or dynamic)
             let total_reward = <T as pallet_treasury_manager::Config>::TotalReward::get();
 
             log::info!(
-                "handle_valid_submission: Miner: {:?}, Hash: {:?}, Validators: {:?}, Total Reward: {:?}",
+                "handle_valid_submission: Miner: {:?}, Hash: {:?}, Verifiers: {:?}, Total Reward: {:?}",
                 miner,
                 hash,
-                validators,
+                verifiers,
                 total_reward
             );
 
@@ -275,7 +275,7 @@ pub mod pallet {
             let call_result = pallet_treasury_manager::Pallet::<T>::direct_reward_distribution(
                 frame_system::RawOrigin::Root.into(),
                 miner.clone(),
-                validators.clone(),
+                verifiers.clone(),
                 total_reward,
             );
             if let Err(e) = call_result {
@@ -302,7 +302,7 @@ pub mod pallet {
 
         fn handle_expired_submission(hash: T::Hash) {
             log::info!("Inserting hash into ProcessedSubmissions: {:?}", hash);
-            ValidationDeadline::<T>::remove(&hash);
+            VerificationDeadline::<T>::remove(&hash);
             MinerForHash::<T>::remove(&hash); // Clean up miner entry
             ProcessedSubmissions::<T>::insert(&hash, ());
             log::info!("Hash inserted into ProcessedSubmissions: {:?}", hash);

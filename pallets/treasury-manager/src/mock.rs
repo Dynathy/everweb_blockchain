@@ -31,7 +31,7 @@ parameter_types! {
     pub const MaxLocks: u32 = 50;
     pub const FeeSplitTreasury: u8 = 70; // 70% to Treasury
     pub const MinerRewardPercentage: u8 = 50; // 50% of remaining reward
-    pub const ValidatorRewardPercentage: u8 = 50; // Remaining 50% split among validators
+    pub const VerifierRewardPercentage: u8 = 50; // Remaining 50% split among verifiers
     pub const DefaultDevAccount: AccountId32 = AccountId32::new([2; 32]);
     pub const TreasuryManagerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/trman");
 }
@@ -93,7 +93,7 @@ impl pallet_treasury_manager::Config for Test {
     type DevPalletId = TreasuryManagerPalletId; // Adjust this based on your implementation
     type FeeSplitTreasury = FeeSplitTreasury;
     type MinerRewardPercentage = MinerRewardPercentage;
-    type ValidatorRewardPercentage = ValidatorRewardPercentage;
+    type VerifierRewardPercentage = VerifierRewardPercentage;
     type DefaultDevAccount = DefaultDevAccount;
 }
 
@@ -109,8 +109,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         balances: vec![
             (treasury_account, 100_000), // Treasury
             (AccountId32::new([2; 32]), 5_000), // Developer
-            (AccountId32::new([3; 32]), 1_000), // Validator 1
-            (AccountId32::new([4; 32]), 1_000), // Validator 2
+            (AccountId32::new([3; 32]), 1_000), // Verifier 1
+            (AccountId32::new([4; 32]), 1_000), // Verifier 2
         ],
     }
     .assimilate_storage(&mut storage)

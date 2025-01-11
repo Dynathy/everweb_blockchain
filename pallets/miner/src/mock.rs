@@ -1,7 +1,10 @@
 #![cfg(test)]
 
 use crate as pallet_miner;
-use frame_support::{parameter_types, traits::ConstU128, traits::ConstU64};
+use pallet_verifier;
+use frame_support::PalletId;
+use frame_system::mocking::{MockUncheckedExtrinsic, MockBlock};
+use frame_support::{parameter_types, traits::ConstU128, traits::ConstU64, assert_ok, assert_noop};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -24,6 +27,7 @@ frame_support::construct_runtime!(
         Balances: pallet_balances,
         Whitelist: pallet_whitelist, // Add the Whitelist pallet
         SubmissionManager: pallet_miner_submission_manager, // Ensure SubmissionManager is above Miner
+        Verifier: pallet_verifier,
         Miner: pallet_miner,
     }
 );
@@ -35,6 +39,8 @@ parameter_types! {
     pub const SubmissionFee: u64 = 10;
     pub const MinerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/miner");
     pub const ManagerPalletId: frame_support::PalletId = frame_support::PalletId(*b"py/mmngr");
+    pub const VerifierPalletId: PalletId = PalletId(*b"py/verif");
+    pub const ExistentialDeposit: u128 = 1;
 }
 
 // Frame System Config
@@ -86,6 +92,14 @@ impl pallet_balances::Config for Test {
     type MaxFreezes = frame_support::traits::ConstU32<1>;
 }
 
+// Pallet Verifier Config
+impl pallet_verifier::Config for Test {
+    type Currency = Balances;
+    type SubmissionFee = SubmissionFee;
+    type RuntimeEvent = RuntimeEvent;
+    type PalletId = VerifierPalletId;
+    type MaxUrlLength = MaxUrlLength;
+}
 
 impl pallet_miner::Config for Test {
     type Currency = Balances;
@@ -118,13 +132,73 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     // Assimilate pallet_balances into the storage
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(AccountId32::new([1; 32]), 1_000)],
+        balances : vec![
+            (AccountId32::new([1; 32]), 1_000),
+            (AccountId32::new([2; 32]), 1_000),
+            (AccountId32::new([3; 32]), 1_000),
+            (AccountId32::new([4; 32]), 1_000),
+            (AccountId32::new([5; 32]), 1_000),
+            (AccountId32::new([6; 32]), 1_000),
+            (AccountId32::new([7; 32]), 1_000),
+            (AccountId32::new([8; 32]), 1_000),
+            (AccountId32::new([9; 32]), 1_000),
+            (AccountId32::new([10; 32]), 1_000),
+            (AccountId32::new([11; 32]), 1_000),
+            ],
     }
     .assimilate_storage(&mut storage)
     .unwrap();
-
     // Convert the storage into TestExternalities
     let mut ext = sp_io::TestExternalities::new(storage);
-    ext.execute_with(|| System::set_block_number(1)); // Ensure a block number is set
+    ext.execute_with(|| {
+        System::set_block_number(1);
+
+        // Register verifiers
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([1; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([2; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([3; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([4; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([5; 32])),
+            100
+        ));
+        // Register verifiers
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([6; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([7; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([8; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([9; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([10; 32])),
+            100
+        ));
+        assert_ok!(pallet_verifier::Pallet::<Test>::register_verifier(
+            RuntimeOrigin::signed(AccountId32::new([11; 32])),
+            100
+        ));
+    });
     ext
 }

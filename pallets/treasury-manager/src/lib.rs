@@ -43,7 +43,7 @@ pub mod pallet {
         #[pallet::constant]
         type MinerRewardPercentage: Get<u8>;
         #[pallet::constant]
-        type ValidatorRewardPercentage: Get<u8>;
+        type VerifierRewardPercentage: Get<u8>;
         #[pallet::constant]
         type DefaultDevAccount: Get<Self::AccountId>;
         #[pallet::constant]
@@ -66,9 +66,9 @@ pub mod pallet {
         },
 		RewardsDistributed {
             miner: T::AccountId,
-            validators: Vec<T::AccountId>, // Reflects multiple validators
+            verifiers: Vec<T::AccountId>, // Reflects multiple verifiers
             miner_reward: BalanceOf<T>,
-            validator_reward: BalanceOf<T>,
+            verifier_reward: BalanceOf<T>,
         },
 	}
 
@@ -78,7 +78,7 @@ pub mod pallet {
 		///Invalid reward split configuration.
 		InvalidFeeSplit,
         InvalidRewardSplit,
-        NoValidatorsAssigned, // New Error
+        NoVerifiersAssigned, // New Error
         FundsUnavailable,
     }
 
@@ -88,15 +88,15 @@ pub mod pallet {
         pub fn direct_reward_distribution(
             origin: OriginFor<T>,
             miner: T::AccountId,
-            validators: Vec<T::AccountId>,
+            verifiers: Vec<T::AccountId>,
             total_reward: BalanceOf<T>,
         ) -> DispatchResult {
             ensure_root(origin)?;
     
             log::info!(
-                "Starting direct_reward_distribution: Miner: {:?}, Validators: {:?}, Total Reward: {:?}",
+                "Starting direct_reward_distribution: Miner: {:?}, Verifiers: {:?}, Total Reward: {:?}",
                 miner,
-                validators,
+                verifiers,
                 total_reward
             );
     
@@ -115,11 +115,11 @@ pub mod pallet {
             // Transfer developer fee
             Self::transfer_developer_fee(&treasury_account, &dev_account, dev_fee)?;
     
-            // Distribute miner and validator rewards
+            // Distribute miner and verifier rewards
             Self::distribute_rewards(
                 &treasury_account,
                 miner,
-                validators,
+                verifiers,
                 remaining_reward,
             )?;
     
@@ -170,10 +170,10 @@ pub mod pallet {
         fn distribute_rewards(
             treasury_account: &T::AccountId,
             miner: T::AccountId,
-            validators: Vec<T::AccountId>,
+            verifiers: Vec<T::AccountId>,
             remaining_reward: BalanceOf<T>,
         ) -> DispatchResult {
-            ensure!(!validators.is_empty(), Error::<T>::NoValidatorsAssigned);
+            ensure!(!verifiers.is_empty(), Error::<T>::NoVerifiersAssigned);
     
             // Calculate miner's reward
             let miner_reward = remaining_reward
@@ -181,16 +181,16 @@ pub mod pallet {
                 .and_then(|v| v.checked_div(&BalanceOf::<T>::from(100u32)))
                 .ok_or(Error::<T>::InvalidRewardSplit)?;
     
-            // Calculate total validator reward
-            let total_validator_reward = remaining_reward.checked_sub(&miner_reward)
+            // Calculate total verifier reward
+            let total_verifier_reward = remaining_reward.checked_sub(&miner_reward)
                 .ok_or(Error::<T>::InvalidRewardSplit)?;
     
-            // Split validator reward equally
-            let per_validator_reward = total_validator_reward / BalanceOf::<T>::from(validators.len() as u32);
-            let remainder = total_validator_reward % BalanceOf::<T>::from(validators.len() as u32);
+            // Split verifier reward equally
+            let per_verifier_reward = total_verifier_reward / BalanceOf::<T>::from(verifiers.len() as u32);
+            let remainder = total_verifier_reward % BalanceOf::<T>::from(verifiers.len() as u32);
     
             log::info!("Miner Reward: {:?}", miner_reward);
-            log::info!("Validator Reward: Per Validator: {:?}, Remainder: {:?}", per_validator_reward, remainder);
+            log::info!("Verifier Reward: Per Verifier: {:?}, Remainder: {:?}", per_verifier_reward, remainder);
     
             // Transfer miner reward
             pallet_treasury::Pallet::<T>::transfer_funds(
@@ -200,20 +200,20 @@ pub mod pallet {
             )?;
             log::info!("Transferred Miner Reward: {:?} to Miner: {:?}", miner_reward, miner);
     
-            // Distribute validator rewards
-            for (i, validator) in validators.iter().enumerate() {
+            // Distribute verifier rewards
+            for (i, verifier) in verifiers.iter().enumerate() {
                 let reward = if i == 0 {
-                    per_validator_reward + remainder // Add remainder to the first validator
+                    per_verifier_reward + remainder // Add remainder to the first verifier
                 } else {
-                    per_validator_reward
+                    per_verifier_reward
                 };
     
                 pallet_treasury::Pallet::<T>::transfer_funds(
                     frame_system::RawOrigin::Root.into(), // Ensure Root origin
-                    validator.clone(),
-                    per_validator_reward,
+                    verifier.clone(),
+                    per_verifier_reward,
                 )?;
-                log::info!("Transferred Validator Reward: {:?} to Validator: {:?}", reward, validator);
+                log::info!("Transferred Verifier Reward: {:?} to Verifier: {:?}", reward, verifier);
             }
     
             Ok(())

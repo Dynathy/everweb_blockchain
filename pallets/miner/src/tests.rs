@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::{new_test_ext, RuntimeOrigin, RuntimeEvent, MaxUrlLength, System, Miner};
+    use crate::mock::{
+        new_test_ext, RuntimeOrigin, RuntimeEvent, System, Miner, SubmissionManager, Verifier,
+    };
     use crate::mock::Test;
     use crate::mock::Whitelist;
     use crate::Pallet as MinerPallet;
@@ -76,7 +78,7 @@ mod tests {
 
     #[test]
     fn submit_hash_works_for_whitelisted_url() {
-        init_logging();
+        //init_logging();
 
         new_test_ext().execute_with(|| {
             let miner_id = AccountId32::new([1; 32]);

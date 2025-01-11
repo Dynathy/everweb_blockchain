@@ -13,8 +13,8 @@ members = [
     "pallets/treasury",
     "pallets/miner", 
     "pallets/miner-submission-manager", 
-    "pallets/validator", 
-    "pallets/validator-submission-manager", 
+    "pallets/verifier", 
+    "pallets/verifier-submission-manager", 
     "pallets/treasury-manager",
     "pallets/whitelist",
     ]
