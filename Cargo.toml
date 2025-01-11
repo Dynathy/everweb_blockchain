@@ -10,13 +10,13 @@ members = [
     "node",
     "pallets/template", 
     "runtime",
-    "treasury",
-    "miner", 
-    "miner-submission-manager", 
-    "validator", 
-    "validator-submission-manager", 
-    "treasury-manager",
-    "whitelist",
+    "pallets/treasury",
+    "pallets/miner", 
+    "pallets/miner-submission-manager", 
+    "pallets/validator", 
+    "pallets/validator-submission-manager", 
+    "pallets/treasury-manager",
+    "pallets/whitelist",
     ]
 resolver = "2"
 
