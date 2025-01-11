@@ -55,7 +55,7 @@ mod tests {
             )));
         });
     }
-    #[ignore]
+
     #[test]
     fn submit_hash_fails_for_duplicate_submission() {
         init_logging();
@@ -79,7 +79,7 @@ mod tests {
             );
         });
     }
-    #[ignore]
+
     #[test]
     fn submit_hash_fails_for_unwhitelisted_url() {
         init_logging();
