@@ -31,7 +31,7 @@ mod tests {
 
     #[test]
     fn test_valid_submission() {
-        init_logger(); // Initialize the logger
+        //init_logger(); // Initialize the logger
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
             let verifier = AccountId32::new([2; 32]);
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_process_submissions_via_public_api() {
-        init_logger(); // Ensure logger is initialized
+        //init_logger(); // Ensure logger is initialized
         new_test_ext().execute_with(|| {
             let miner = AccountId32::new([1; 32]);
             let verifier1 = AccountId32::new([2; 32]);
